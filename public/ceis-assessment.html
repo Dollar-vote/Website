@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DollarVote · Your CEIS™ Assessment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --teal:#1A8FA0; --green:#7DC832; --blue:#1A3A8F;
+    --ink:#0B1525; --gray:#5E646E; --lgray:#9AA0AB;
+    --line:#E8E8ED; --line2:#EFEFF3;
+    --bg:#F5F5F7; --card:#FFFFFF; --warm:#EEF1F7;
+    --gold:#C8972A; --amber:#B45309; --rose:#C1440E;
+    --grad:linear-gradient(135deg,#1A3A8F 0%,#1A8FA0 52%,#7DC832 100%);
+    --shadow-sm:0 1px 2px rgba(11,21,37,.04),0 2px 6px rgba(11,21,37,.05);
+    --shadow:0 4px 12px rgba(11,21,37,.06),0 12px 32px rgba(11,21,37,.07);
+    --shadow-lg:0 20px 60px rgba(11,21,37,.12);
+    --r:18px; --r-sm:12px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue",sans-serif;
+    background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;line-height:1.55;
+    background-image:radial-gradient(circle at 12% 8%,rgba(26,143,160,.06),transparent 42%),radial-gradient(circle at 88% 92%,rgba(26,58,143,.05),transparent 45%);
+    background-attachment:fixed;
+  }
+  .serif{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif}
+
+  /* ============ LAYOUT ============ */
+  .shell{display:grid;grid-template-columns:340px 1fr;min-height:100vh}
+  @media(max-width:980px){.shell{grid-template-columns:1fr}}
+
+  /* ============ SIDEBAR ============ */
+  .side{
+    position:sticky;top:0;height:100vh;overflow-y:auto;
+    background:var(--ink);color:#fff;padding:30px 26px 40px;
+    display:flex;flex-direction:column;
+  }
+  @media(max-width:980px){.side{position:relative;height:auto}}
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:30px}
+  .brand-mark{width:34px;height:34px;border-radius:9px;background:var(--grad);display:grid;place-items:center;flex-shrink:0;box-shadow:0 4px 14px rgba(46,196,182,.4)}
+  .brand-mark svg{width:19px;height:19px}
+  .brand-name{font-weight:800;font-size:18px;letter-spacing:-.3px}
+  .brand-name span{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* live score block */
+  .score-live{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--r);padding:22px 20px;margin-bottom:24px;backdrop-filter:blur(8px)}
+  .score-live-label{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:var(--lgray);font-weight:700;margin-bottom:6px}
+  .score-num{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;font-size:58px;font-weight:600;line-height:1;letter-spacing:-1px;display:flex;align-items:baseline;gap:4px}
+  .score-num .pt{font-size:20px;color:var(--lgray);font-weight:500}
+  .score-num.scoring{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .score-tier{font-size:13px;font-weight:600;margin-top:7px;color:var(--teal)}
+  .score-prov{font-size:11.5px;color:var(--lgray);margin-top:10px;line-height:1.45;border-top:1px solid rgba(255,255,255,.08);padding-top:10px}
+
+  .pillars{margin-bottom:8px}
+  .pbar-row{margin-bottom:13px}
+  .pbar-top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+  .pbar-top .nm{color:#D6D9DE;font-weight:600}
+  .pbar-top .vl{color:var(--lgray);font-variant-numeric:tabular-nums}
+  .pbar{height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden}
+  .pbar-fill{height:100%;border-radius:99px;width:0%;transition:width .6s cubic-bezier(.22,1,.36,1)}
+  .pf-loc{background:linear-gradient(90deg,#1A3A8F,#1A8FA0)}
+  .pf-sus{background:linear-gradient(90deg,#1A8FA0,#7DC832)}
+  .pf-trn{background:linear-gradient(90deg,#1A3A8F,#22B5CC)}
+
+  .step-nav{margin-top:18px;flex:1}
+  .step-nav-h{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:var(--lgray);font-weight:700;margin-bottom:12px}
+  .step-item{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:10px;cursor:pointer;transition:background .2s;margin-bottom:1px}
+  .step-item:hover{background:rgba(255,255,255,.05)}
+  .step-item.active{background:rgba(46,196,182,.14)}
+  .step-dot{width:21px;height:21px;border-radius:50%;border:2px solid rgba(255,255,255,.22);flex-shrink:0;display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--lgray);transition:all .25s}
+  .step-item.active .step-dot{border-color:var(--teal);color:var(--teal)}
+  .step-item.done .step-dot{background:var(--teal);border-color:var(--teal);color:var(--ink)}
+  .step-label{font-size:13px;color:#C3C7CE;font-weight:500;line-height:1.25}
+  .step-item.active .step-label{color:#fff;font-weight:600}
+  .step-pts{margin-left:auto;font-size:11px;color:var(--lgray);font-variant-numeric:tabular-nums;font-weight:600}
+
+  /* ============ MAIN ============ */
+  .main{padding:0;overflow-x:hidden}
+  .topbar{position:sticky;top:0;z-index:40;background:rgba(251,250,246,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:16px 46px;display:flex;align-items:center;justify-content:space-between}
+  @media(max-width:980px){.topbar{padding:14px 22px}}
+  .prog-wrap{display:flex;align-items:center;gap:14px;flex:1;max-width:440px}
+  .prog-track{flex:1;height:7px;background:var(--warm);border-radius:99px;overflow:hidden}
+  .prog-fill{height:100%;background:var(--grad);border-radius:99px;width:0%;transition:width .5s cubic-bezier(.22,1,.36,1)}
+  .prog-txt{font-size:13px;font-weight:600;color:var(--gray);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .save-btn{font-family:inherit;font-size:13px;font-weight:600;color:var(--gray);background:none;border:1px solid var(--line);padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:7px}
+  .save-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+  .canvas{max-width:780px;margin:0 auto;padding:50px 46px 140px}
+  @media(max-width:980px){.canvas{padding:36px 22px 120px}}
+
+  .panel{display:none;animation:rise .5s cubic-bezier(.22,1,.36,1)}
+  .panel.show{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+  /* section header */
+  .sec-tag{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;padding:6px 13px;border-radius:99px;margin-bottom:20px}
+  .tag-loc{background:rgba(46,196,182,.12);color:#138f83}
+  .tag-sus{background:rgba(68,207,108,.14);color:#2c9c4c}
+  .tag-trn{background:rgba(26,115,212,.1);color:#1a5fb4}
+  .tag-id{background:var(--warm);color:var(--gray)}
+  .sec-pts-pill{margin-left:4px;padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.5);font-weight:800}
+
+  h1.q{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;font-size:36px;font-weight:600;line-height:1.12;letter-spacing:-.7px;margin-bottom:14px}
+  @media(max-width:600px){h1.q{font-size:28px}}
+  .q-sub{font-size:17px;color:var(--gray);line-height:1.6;margin-bottom:8px;max-width:90%}
+
+  /* WHY THIS MATTERS box */
+  .why{position:relative;background:rgba(255,255,255,.62);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border:1px solid rgba(255,255,255,.6);border-left:none;border-radius:var(--r);padding:22px 24px 22px 26px;margin:26px 0 32px;box-shadow:var(--shadow-sm);overflow:hidden}
+  .why::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--grad)}
+  .why-h{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--teal);margin-bottom:10px}
+  .why-h svg{width:16px;height:16px}
+  .why-body{font-size:15.5px;line-height:1.62;color:#2C3037}
+  .why-body strong{color:var(--ink);font-weight:700}
+  .why-stat{display:inline-flex;align-items:center;gap:6px;background:var(--warm);border-radius:8px;padding:3px 10px;font-size:13.5px;font-weight:700;color:var(--ink);margin:2px 3px 2px 0;font-variant-numeric:tabular-nums}
+  .why-stat b{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .margin-flag{display:inline-flex;align-items:center;gap:6px;margin-top:14px;font-size:13px;font-weight:700;color:#2c9c4c;background:rgba(68,207,108,.1);padding:7px 13px;border-radius:9px}
+  .margin-flag svg{width:15px;height:15px}
+
+  /* options */
+  .opt-label{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--lgray);margin:0 0 13px}
+  .opts{display:flex;flex-direction:column;gap:11px;margin-bottom:30px}
+  .opt{position:relative;display:flex;align-items:flex-start;gap:14px;padding:17px 19px;border:1.5px solid rgba(255,255,255,.6);border-radius:var(--r-sm);cursor:pointer;transition:all .18s;background:rgba(255,255,255,.55);backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);box-shadow:var(--shadow-sm)}
+  .opt:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .opt.sel{border-color:var(--teal);background:linear-gradient(180deg,rgba(46,196,182,.05),rgba(68,207,108,.03));box-shadow:0 0 0 3px rgba(46,196,182,.1)}
+  .opt-radio{width:21px;height:21px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;margin-top:1px;display:grid;place-items:center;transition:all .2s}
+  .opt.sel .opt-radio{border-color:var(--teal)}
+  .opt.sel .opt-radio::after{content:"";width:11px;height:11px;border-radius:50%;background:var(--grad)}
+  .opt-txt{flex:1}
+  .opt-main{font-size:15.5px;font-weight:600;color:var(--ink);line-height:1.4}
+  .opt-desc{font-size:13.5px;color:var(--gray);margin-top:3px;line-height:1.45}
+  .opt-pts{font-size:12.5px;font-weight:800;color:var(--teal);background:rgba(46,196,182,.1);padding:4px 10px;border-radius:8px;white-space:nowrap;align-self:center;font-variant-numeric:tabular-nums}
+
+  /* text & number inputs */
+  .field{margin-bottom:22px}
+  .field-label{display:block;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:7px}
+  .field-hint{font-size:13px;color:var(--gray);margin-bottom:9px;line-height:1.45}
+  .field input,.field select{width:100%;font-family:inherit;font-size:15px;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:var(--r-sm);padding:13px 15px;transition:all .18s;outline:none}
+  .field input:focus,.field select:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(46,196,182,.12)}
+  .field input::placeholder{color:var(--lgray)}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:600px){.field-row{grid-template-columns:1fr}}
+
+  /* slider */
+  .slider-wrap{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:22px 24px;margin-bottom:28px}
+  .slider-top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px}
+  .slider-val{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;font-size:42px;font-weight:600;line-height:1;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .slider-cap{font-size:13px;color:var(--gray);font-weight:600;text-align:right;max-width:170px}
+  input[type=range]{-webkit-appearance:none;width:100%;height:8px;border-radius:99px;background:var(--warm);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--teal);cursor:pointer;box-shadow:var(--shadow);transition:transform .15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.12)}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--teal);cursor:pointer;box-shadow:var(--shadow)}
+  .slider-scale{display:flex;justify-content:space-between;font-size:11.5px;color:var(--lgray);margin-top:9px;font-weight:600}
+
+  /* evidence upload */
+  .evidence{background:var(--warm);border-radius:var(--r);padding:20px 22px;margin-bottom:14px}
+  .evidence-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
+  .evidence-title{font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px}
+  .evidence-title svg{width:17px;height:17px;color:var(--teal)}
+  .tier-badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px;text-transform:uppercase;letter-spacing:.4px}
+  .tier-1{background:rgba(200,151,42,.16);color:#9c7012}
+  .tier-2{background:rgba(100,116,139,.16);color:#475569}
+  .tier-3{background:rgba(46,196,182,.16);color:#138f83}
+  .evidence-desc{font-size:13px;color:var(--gray);line-height:1.5;margin-bottom:14px}
+  .drop{border:2px dashed var(--line);border-radius:var(--r-sm);background:rgba(255,255,255,.6);padding:20px;text-align:center;cursor:pointer;transition:all .2s}
+  .drop:hover{border-color:var(--teal);background:#fff}
+  .drop.has{border-style:solid;border-color:var(--green);background:rgba(68,207,108,.06)}
+  .drop svg{width:26px;height:26px;color:var(--lgray);margin-bottom:7px}
+  .drop.has svg{color:var(--green)}
+  .drop-main{font-size:14px;font-weight:600;color:var(--ink)}
+  .drop-sub{font-size:12.5px;color:var(--lgray);margin-top:3px}
+  .drop.has .drop-main{color:#2c9c4c}
+  .sub-guide{display:flex;gap:9px;align-items:flex-start;background:rgba(26,115,212,.05);border-radius:10px;padding:12px 14px;margin-top:13px;font-size:13px;color:#2C3037;line-height:1.5}
+  .sub-guide svg{width:16px;height:16px;color:var(--blue);flex-shrink:0;margin-top:2px}
+  .sub-guide b{color:var(--ink)}
+
+  /* nav buttons */
+  .nav-row{display:flex;justify-content:space-between;align-items:center;margin-top:38px;padding-top:28px;border-top:1px solid var(--line)}
+  .btn{font-family:inherit;font-size:15px;font-weight:700;padding:14px 28px;border-radius:13px;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:9px}
+  .btn-primary{background:var(--ink);color:#fff;box-shadow:var(--shadow)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+  .btn-primary.glow{background:var(--grad)}
+  .btn-ghost{background:none;color:var(--gray);padding:14px 18px}
+  .btn-ghost:hover{color:var(--ink)}
+  .btn svg{width:18px;height:18px}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  /* welcome panel */
+  .welcome{text-align:center;padding-top:30px}
+  .welcome .badge{display:inline-flex;align-items:center;gap:8px;background:var(--warm);padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;color:var(--gray);margin-bottom:26px}
+  .welcome .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(68,207,108,.2)}
+  .welcome h1{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;font-size:50px;font-weight:600;line-height:1.06;letter-spacing:-1.2px;margin-bottom:20px}
+  @media(max-width:600px){.welcome h1{font-size:34px}}
+  .welcome h1 em{font-style:italic;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .welcome p{font-size:18px;color:var(--gray);line-height:1.6;max-width:560px;margin:0 auto 16px}
+  .wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:38px 0 14px;text-align:left}
+  @media(max-width:600px){.wgrid{grid-template-columns:1fr}}
+  .wcard{background:rgba(255,255,255,.6);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border:1px solid rgba(255,255,255,.6);border-radius:var(--r);padding:22px;box-shadow:var(--shadow)}
+  .wcard-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;margin-bottom:14px}
+  .wcard-ic svg{width:22px;height:22px;color:#fff}
+  .wcard h3{font-size:16px;font-weight:700;margin-bottom:6px}
+  .wcard p{font-size:13.5px;color:var(--gray);line-height:1.5;margin:0;text-align:left}
+  .wmeta{display:flex;justify-content:center;gap:30px;margin:34px 0 38px;flex-wrap:wrap}
+  .wmeta div{text-align:center}
+  .wmeta .n{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;font-size:30px;font-weight:600;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .wmeta .l{font-size:12.5px;color:var(--gray);font-weight:600;margin-top:2px}
+
+  /* review / submit */
+  .review-card{background:rgba(255,255,255,.6);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border:1px solid rgba(255,255,255,.6);border-radius:var(--r);padding:8px 6px;margin-bottom:24px;box-shadow:var(--shadow)}
+  .review-row{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid var(--line2)}
+  .review-row:last-child{border-bottom:none}
+  .rr-check{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+  .rr-check.ok{background:rgba(68,207,108,.15)}
+  .rr-check.no{background:var(--warm)}
+  .rr-check svg{width:13px;height:13px}
+  .rr-name{font-size:14.5px;font-weight:600;flex:1}
+  .rr-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--lgray)}
+  .rr-pts{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink);min-width:54px;text-align:right}
+  .final-score-card{background:var(--ink);border-radius:24px;padding:42px;text-align:center;color:#fff;margin-bottom:28px;position:relative;overflow:hidden}
+  .final-score-card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(46,196,182,.25),transparent 60%)}
+  .fsc-label{font-size:12px;text-transform:uppercase;letter-spacing:1.6px;color:var(--lgray);font-weight:700;position:relative}
+  .fsc-num{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;font-size:90px;font-weight:600;line-height:1;margin:8px 0;position:relative;letter-spacing:-2px}
+  .fsc-num span{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .fsc-tier{font-size:19px;font-weight:700;color:var(--teal);position:relative}
+  .fsc-note{font-size:13.5px;color:var(--lgray);margin-top:14px;position:relative;line-height:1.5;max-width:400px;margin-left:auto;margin-right:auto}
+
+  .pulse{animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+  ::-webkit-scrollbar{width:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:99px;border:3px solid var(--bg)}
+  .side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M7 6h7a3 3 0 010 6H8a3 3 0 000 6h8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-name">Dollar<span>Vote</span></div>
+    </div>
+
+    <div class="score-live">
+      <div class="score-live-label">Your CEIS™ Score — Live</div>
+      <div class="score-num" id="liveScore">—<span class="pt">/100</span></div>
+      <div class="score-tier" id="liveTier">Start your assessment</div>
+      <div class="score-prov" id="liveProv">This is a live preview. Your official score is finalized after document verification.</div>
+    </div>
+
+    <div class="pillars">
+      <div class="pbar-row">
+        <div class="pbar-top"><span class="nm">Locality</span><span class="vl" id="vLoc">0 / 40</span></div>
+        <div class="pbar"><div class="pbar-fill pf-loc" id="bLoc"></div></div>
+      </div>
+      <div class="pbar-row">
+        <div class="pbar-top"><span class="nm">Sustainability</span><span class="vl" id="vSus">0 / 30</span></div>
+        <div class="pbar"><div class="pbar-fill pf-sus" id="bSus"></div></div>
+      </div>
+      <div class="pbar-row">
+        <div class="pbar-top"><span class="nm">Transparency</span><span class="vl" id="vTrn">0 / 30</span></div>
+        <div class="pbar"><div class="pbar-fill pf-trn" id="bTrn"></div></div>
+      </div>
+    </div>
+
+    <nav class="step-nav">
+      <div class="step-nav-h">Sections</div>
+      <div id="stepNav"></div>
+    </nav>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+    <div class="topbar">
+      <div class="prog-wrap">
+        <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+        <div class="prog-txt" id="progTxt">0% complete</div>
+      </div>
+      <button class="save-btn" onclick="saveExit()">
+        <svg viewBox="0 0 24 24" fill="none" width="15" height="15"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 21v-8H7v8M7 3v5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Save &amp; exit
+      </button>
+    </div>
+
+    <div class="canvas" id="canvas"></div>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   CEIS™ ASSESSMENT — DATA MODEL
+   Each scoring section maps to a CEIS sub-category.
+   "why" = the compelling business-value reason (growth/margin).
+   ============================================================ */
+
+const SECTIONS = [
+  /* ---------- WELCOME ---------- */
+  { id:'welcome', kind:'welcome', label:'Welcome', pillar:null },
+
+  /* ---------- IDENTITY ---------- */
+  {
+    id:'identity', kind:'identity', label:'Business Identity', pillar:'id', pts:0,
+  },
+
+  /* ====================== LOCALITY (40) ====================== */
+  {
+    id:'L1_1', kind:'score', pillar:'loc', max:12, label:'Local Supply Chain',
+    tag:'Locality', tagClass:'tag-loc',
+    q:'How much of what you buy comes from local suppliers?',
+    sub:'Think about the businesses you purchase inventory, ingredients, materials, and supplies from over a typical year.',
+    why:{
+      body:'This is the single biggest driver of your score — and your story. When customers know your money stays in the community, they spend more and come back more often. Naming your local suppliers (a nearby farm, roaster, or maker) lets you justify premium pricing the way "farm-to-table" restaurants do.',
+      stats:['<b>78%</b> will pay more to buy local','<b>$68</b> of every $100 stays local'],
+      margin:'Naming local suppliers supports premium pricing — higher margins per sale.'
+    },
+    opts:[
+      {t:'Most of it — 70%+ from within 25 miles',d:'You source the majority of your supplies locally',p:1.0},
+      {t:'About half — 40–70% local',d:'A strong local mix with some regional/national',p:0.7},
+      {t:'Some — 15–40% local',d:'You buy local where you can',p:0.45},
+      {t:'A little — under 15%',d:'Mostly national suppliers right now',p:0.2},
+      {t:'Not sure yet',d:'We can help you map this from your invoices',p:0.1},
+    ],
+    ev:{title:'Supplier invoices (last 12 months)',tier:'Tier 3 · Verified',tierClass:'tier-3',
+      desc:'Upload a sample of invoices showing supplier names and addresses. We calculate your exact local-spend percentage from these.',
+      sub:'<b>No organized records?</b> Even a list of your top 10 suppliers with their cities gets you started. We refine it from there.'}
+  },
+  {
+    id:'L1_2', kind:'score', pillar:'loc', max:10, label:'Local Workforce',
+    tag:'Locality', tagClass:'tag-loc',
+    q:'Do the people who work here live nearby?',
+    sub:'We mean the percentage of your team — employees and regular contractors — who live within about 25 miles.',
+    why:{
+      body:'Local employees are your most powerful marketing channel. They bring in neighbors, friends, and family, and they stay longer — which cuts the cost of constant rehiring. A team rooted in the community is a story customers trust instantly.',
+      stats:['<b>5–6×</b> a hire\'s salary is the cost to replace them'],
+      margin:'Lower turnover from local, invested staff directly protects your margins.'
+    },
+    opts:[
+      {t:'Nearly everyone — 90%+ local',d:'Your whole team lives in the community',p:1.0},
+      {t:'Most — 60–90% local',d:'The majority live nearby',p:0.7},
+      {t:'About half — 30–60%',d:'A mix of local and commuting staff',p:0.45},
+      {t:'Under 30% local',d:'Most commute from outside the area',p:0.2},
+      {t:'I\'m a solo owner / no employees yet',d:'Just you for now',p:0.6},
+    ],
+    ev:{title:'Payroll summary with ZIP codes',tier:'Tier 2 · Verified',tierClass:'tier-2',
+      desc:'A payroll export (Gusto, ADP, QuickBooks) showing employee ZIP codes — wages can be fully hidden. We only read locations.',
+      sub:'<b>Prefer privacy?</b> A simple roster of employee home ZIP codes works too — no names or pay needed.'}
+  },
+  {
+    id:'L1_3', kind:'score', pillar:'loc', max:10, label:'Local Ownership',
+    tag:'Locality', tagClass:'tag-loc',
+    q:'Is your business independently and locally owned?',
+    sub:'Ownership structure is one of the strongest signals customers look for when choosing where to spend.',
+    why:{
+      body:'"Locally owned" is one of the most powerful phrases in retail. It\'s the clearest way to separate yourself from national chains competing on the same street. Verified independent ownership earns you a badge customers actively seek out — and a story no franchise can copy.',
+      stats:['<b>80%</b> shop local specifically to support the community'],
+      margin:'A verified-local badge wins customers away from chains — without discounting.'
+    },
+    opts:[
+      {t:'100% independently & locally owned',d:'Owner lives in the community, no outside chain',p:1.0},
+      {t:'Locally owned franchise',d:'You own it locally, operating under a brand',p:0.55},
+      {t:'Local with some outside investors',d:'Majority local ownership',p:0.7},
+      {t:'Part of a regional group',d:'Multiple locations, regional ownership',p:0.35},
+      {t:'Owned by a national company',d:'Corporate-owned location',p:0.1},
+    ],
+    ev:{title:'Articles of Incorporation or business registration',tier:'Tier 1 · Gold',tierClass:'tier-1',
+      desc:'Your state business filing confirms ownership and formation. We also verify automatically against your Secretary of State record.',
+      sub:'<b>We do the legwork.</b> Give us your legal business name and state — we pull and verify the public record for you.'}
+  },
+  {
+    id:'L1_4', kind:'score', pillar:'loc', max:8, label:'Local Banking & Services',
+    tag:'Locality', tagClass:'tag-loc',
+    q:'Where do you bank and who handles your books?',
+    sub:'Your bank, accountant, attorney, and other professional services — are they local institutions or national ones?',
+    why:{
+      body:'Banking with a local credit union or community bank keeps your deposits funding mortgages and small-business loans in your own neighborhood. It\'s a credibility signal customers respect — and community banks and credit unions often offer noticeably better business-loan rates and lower fees than the national banks.',
+      stats:['Community lenders often beat national-bank business rates'],
+      margin:'Switching to a local credit union can lower your fees and borrowing costs — real savings.'
+    },
+    opts:[
+      {t:'Local credit union or community bank',d:'Your primary banking is with a local institution',p:1.0},
+      {t:'Regional bank (in-state)',d:'A regional bank headquartered in your state',p:0.55},
+      {t:'National bank (Chase, BofA, Wells, etc.)',d:'Primary accounts at a national bank',p:0.15},
+      {t:'Online / fintech (Mercury, Bluevine, etc.)',d:'A digital banking platform',p:0.15},
+      {t:'Mix of local and national',d:'You split banking across institutions',p:0.5},
+    ],
+    ev:{title:'Bank statement header or welcome letter',tier:'Tier 3 · Verified',tierClass:'tier-3',
+      desc:'Just the header showing your bank\'s name — balances and transactions can be fully blacked out. We verify the institution against the FDIC/NCUA registry.',
+      sub:'<b>Bonus points:</b> a relationship letter from a local credit union or a CDFI lender earns the top score automatically.'}
+  },
+
+  /* ====================== SUSTAINABILITY (30) ====================== */
+  {
+    id:'S2_1', kind:'score', pillar:'sus', max:10, label:'Waste Reduction',
+    tag:'Sustainability', tagClass:'tag-sus',
+    q:'How do you handle waste, recycling, and packaging?',
+    sub:'Composting, recycling, reducing single-use plastic, and diverting waste from the landfill.',
+    why:{
+      body:'Cutting waste cuts a real bill — composting and recycling programs reduce what you pay in landfill hauling fees every month. At the same time, the 207 million eco-conscious shoppers in the U.S. actively seek out businesses that visibly reduce waste. This is one of the rare places where doing good and lowering costs point the same direction.',
+      stats:['<b>207M</b> eco-conscious U.S. shoppers'],
+      margin:'Waste diversion lowers your monthly hauling and disposal costs directly.'
+    },
+    opts:[
+      {t:'Comprehensive — composting + recycling + reduced plastic',d:'A full program across your operation',p:1.0},
+      {t:'Strong — active recycling & some composting',d:'Recycling plus efforts to reduce waste',p:0.7},
+      {t:'Basic recycling only',d:'You recycle but haven\'t gone further',p:0.4},
+      {t:'Just getting started',d:'Minimal program right now',p:0.2},
+      {t:'Not yet — but want to',d:'We\'ll show you the highest-impact first steps',p:0.1},
+    ],
+    ev:{title:'Composting or hauler service invoice',tier:'Tier 3 · Verified',tierClass:'tier-3',
+      desc:'An invoice from your composting or recycling service is the cleanest proof. Packaging supplier invoices for compostable goods also count.',
+      sub:'<b>Tip:</b> setting up a commercial composting service is often a quick win — many founders gain 2–4 points here in a single phone call.'}
+  },
+  {
+    id:'S2_2', kind:'score', pillar:'sus', max:10, label:'Energy & Water',
+    tag:'Sustainability', tagClass:'tag-sus',
+    q:'How energy- and water-efficient is your operation?',
+    sub:'Renewable energy, efficient equipment, LED lighting, and water conservation measures.',
+    why:{
+      body:'Every efficiency upgrade shows up twice: once on your score, and every month on your utility bill. ENERGY STAR equipment, LED lighting, and a green energy tariff lower your operating costs for years. This is the most directly profitable section of the entire assessment — efficiency is margin you keep.',
+      stats:['Efficiency upgrades pay back monthly, for years'],
+      margin:'Lower energy and water use = permanently lower monthly overhead.'
+    },
+    opts:[
+      {t:'Renewable energy + efficient equipment',d:'Green tariff or solar, plus ENERGY STAR gear',p:1.0},
+      {t:'Several efficiency measures in place',d:'LED, efficient equipment, some conservation',p:0.7},
+      {t:'A few upgrades done',d:'You\'ve made a start on efficiency',p:0.45},
+      {t:'Standard setup, no upgrades yet',d:'Nothing special in place',p:0.2},
+      {t:'Not sure what I have',d:'We\'ll help you find easy wins',p:0.1},
+    ],
+    ev:{title:'Utility bills (12 months) or equipment list',tier:'Tier 2 · Verified',tierClass:'tier-2',
+      desc:'Utility bills let us verify a green tariff and track your efficiency trend. ENERGY STAR equipment model numbers are verified automatically.',
+      sub:'<b>Quick win:</b> enrolling in your utility\'s green energy tariff is usually a 15-minute online form — and can lift this score immediately.'}
+  },
+  {
+    id:'S2_3', kind:'score', pillar:'sus', max:10, label:'Sustainable Sourcing',
+    tag:'Sustainability', tagClass:'tag-sus',
+    q:'Do you carry certified sustainable or ethical products?',
+    sub:'Fair Trade, USDA Organic, Rainforest Alliance, cruelty-free, and similar third-party certifications.',
+    why:{
+      body:'Certifications are permission to charge more. Fair Trade, Organic, and similar labels are proven to lift what customers will pay — and they unlock the fast-growing conscious-consumer market that\'s projected to more than double by 2032. A verified certification on your DollarVote profile turns your values into a pricing advantage.',
+      stats:['<b>$544B</b> sustainable market by 2032','<b>80%</b> will pay more for certified'],
+      margin:'Certified products command premium prices — directly expanding margins.'
+    },
+    opts:[
+      {t:'Yes — multiple certifications (2+)',d:'Fair Trade, Organic, Rainforest Alliance, etc.',p:1.0},
+      {t:'Yes — one certification',d:'You hold one recognized certification',p:0.65},
+      {t:'Some certified products, not certified myself',d:'You stock certified goods',p:0.45},
+      {t:'Working toward certification',d:'In process or planning to apply',p:0.25},
+      {t:'None yet',d:'No certifications at this time',p:0.05},
+    ],
+    ev:{title:'Certification documents',tier:'Tier 1 · Gold',tierClass:'tier-1',
+      desc:'Upload your certificates — we verify each one live against the certifying body\'s registry (Fair Trade USA, USDA Organic, B Lab, and more) for an automatic top score.',
+      sub:'<b>Already certified?</b> Just give us the certificate number — verification is instant and earns full points with no review needed.'}
+  },
+
+  /* ====================== TRANSPARENCY (30) ====================== */
+  {
+    id:'T3_1', kind:'score', pillar:'trn', max:12, label:'Fair Wages',
+    tag:'Transparency', tagClass:'tag-trn',
+    q:'How do your wages compare to a living wage?',
+    sub:'A living wage is what a worker needs to cover basic costs in your area. We compare against the MIT Living Wage benchmark for your county.',
+    why:{
+      body:'Paying a living wage is increasingly what customers look for — and it pays you back in retention. Replacing an employee can cost several times their salary in hiring and training, so a fairly-paid, stable team protects your margins more than almost anything else. Verified fair wages also earn one of the most trusted badges on your profile.',
+      stats:['Replacing staff costs <b>5–6×</b> their wage'],
+      margin:'Fair pay slashes turnover costs — the hidden expense that quietly erodes margins.'
+    },
+    opts:[
+      {t:'Everyone earns at or above a living wage',d:'Your whole team is at living wage or higher',p:1.0},
+      {t:'Most do — 75%+',d:'The majority are at or above living wage',p:0.7},
+      {t:'About half',d:'Some are at living wage, some below',p:0.45},
+      {t:'Working toward it',d:'Below living wage but raising over time',p:0.25},
+      {t:'I\'m a solo owner',d:'No employees to pay yet',p:0.6},
+    ],
+    ev:{title:'Payroll rate summary',tier:'Tier 2 · Verified',tierClass:'tier-2',
+      desc:'A payroll export showing wage rates (names hidden) lets us compare against the living wage for your county. We never publish individual wages.',
+      sub:'<b>Path to a top score:</b> the Living Wage Employer certification earns automatic full points here — we can point you to the application.'}
+  },
+  {
+    id:'T3_2', kind:'score', pillar:'trn', max:10, label:'Community Giving',
+    tag:'Transparency', tagClass:'tag-trn',
+    q:'Do you give back to local causes?',
+    sub:'Donations, sponsorships, in-kind giving, or volunteer programs supporting local nonprofits and community groups.',
+    why:{
+      body:'Community giving builds the kind of loyal customer base advertising can\'t buy — people champion businesses that visibly support local causes. Much of it is tax-deductible, and sponsoring a local team or school puts your name in front of the community repeatedly. Generosity spread across several local causes scores highest and builds the widest goodwill.',
+      stats:['Local goodwill drives repeat business & referrals'],
+      margin:'Many contributions are tax-deductible — giving back can lower your tax bill.'
+    },
+    opts:[
+      {t:'Yes — regularly, to several local causes',d:'Ongoing giving across multiple nonprofits',p:1.0},
+      {t:'Yes — to one or two causes',d:'Consistent support for a cause you care about',p:0.65},
+      {t:'Occasionally',d:'You give when you can',p:0.4},
+      {t:'Rarely / just starting',d:'Not a formal program yet',p:0.2},
+      {t:'Not yet',d:'We\'ll suggest easy ways to begin',p:0.05},
+    ],
+    ev:{title:'Donation receipts or sponsorship records',tier:'Tier 3 · Verified',tierClass:'tier-3',
+      desc:'Receipts from local nonprofits (with their EIN) let us verify the recipient is a registered local organization. Sponsorship agreements count too.',
+      sub:'<b>Note:</b> giving to several different local nonprofits scores higher than the same total to just one — distribution builds broader community impact.'}
+  },
+  {
+    id:'T3_3', kind:'score', pillar:'trn', max:8, label:'Financial Transparency',
+    tag:'Transparency', tagClass:'tag-trn',
+    q:'Would you share where each dollar of revenue goes?',
+    sub:'A simple, public breakdown: of every $1 you earn, how much goes to wages, supplies, rent, giving, and owner pay. You choose how much to disclose.',
+    why:{
+      body:'This is the boldest move on the platform — and the most powerful. A public "where your dollar goes" breakdown is something almost no business offers, which makes it an instant, unmistakable trust signal. It justifies your pricing by showing customers exactly what their money supports, and it earns the highest tier of consumer confidence. You stay fully in control of what you share.',
+      stats:['Radical transparency is your rarest differentiator'],
+      margin:'Showing where the dollar goes justifies your prices and deepens loyalty.'
+    },
+    opts:[
+      {t:'Yes — publish a full revenue breakdown',d:'Share the complete picture publicly',p:1.0},
+      {t:'Yes — wages, sourcing & giving',d:'A meaningful partial breakdown',p:0.75},
+      {t:'Yes — just wages & community giving',d:'Disclose the community-facing portions',p:0.55},
+      {t:'Maybe later — interested but not ready',d:'Keep it private for now',p:0.2},
+      {t:'No — prefer to keep financials private',d:'No disclosure at this time',p:0.0},
+    ],
+    ev:{title:'Revenue allocation worksheet + authorization',tier:'Tier 2 · Verified',tierClass:'tier-2',
+      desc:'We give you a simple worksheet — you fill in percentages only (never dollar amounts), then sign a one-page authorization to publish. Your actual financials stay private.',
+      sub:'<b>You\'re in control:</b> only percentages are ever shown publicly. Raw numbers are never displayed and never stored on your profile.'}
+  },
+
+  /* ---------- REVIEW ---------- */
+  { id:'review', kind:'review', label:'Review & Submit', pillar:null },
+];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const PILLAR_MAX = { loc:40, sus:30, trn:30 };
+const state = { current:0, answers:{}, evidence:{}, identity:{} };
+const scoreSections = SECTIONS.filter(s=>s.kind==='score');
+
+/* ---------- Supabase connection (publishable key — safe in browser) ---------- */
+const SUPABASE_URL = "https://vjsosuuognevznjcjeux.supabase.co";
+const SUPABASE_KEY = "sb_publishable_2qVvyAsjmwcy4vvmTMDKHA_8nARrkxI";
+const sb = (window.supabase && SUPABASE_URL)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const canvas = document.getElementById('canvas');
+
+function iconFor(pillar){
+  if(pillar==='loc') return '<svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-5.3-7-11a7 7 0 1114 0c0 5.7-7 11-7 11z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="2"/></svg>';
+  if(pillar==='sus') return '<svg viewBox="0 0 24 24" fill="none"><path d="M12 22c5-2 8-6 8-12V5l-8-3-8 3v5c0 6 3 10 8 12z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  return '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function gradFor(pillar){
+  if(pillar==='loc') return 'linear-gradient(135deg,#1A3A8F,#1A8FA0)';
+  if(pillar==='sus') return 'linear-gradient(135deg,#1A8FA0,#7DC832)';
+  return 'linear-gradient(135deg,#1A3A8F,#22B5CC)';
+}
+
+function renderStepNav(){
+  const nav = document.getElementById('stepNav');
+  nav.innerHTML = '';
+  SECTIONS.forEach((s,i)=>{
+    if(s.kind==='welcome') return;
+    const done = isComplete(i);
+    const active = i===state.current;
+    const el = document.createElement('div');
+    el.className = 'step-item'+(active?' active':'')+(done&&!active?' done':'');
+    el.onclick = ()=>goTo(i);
+    const num = s.kind==='score' ? scoreSections.indexOf(s)+1 : (s.kind==='identity'?'★':'✓');
+    el.innerHTML = `
+      <div class="step-dot">${done&&!active?'<svg viewBox="0 0 24 24" fill="none" width="11" height="11"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>':num}</div>
+      <div class="step-label">${s.label}</div>
+      ${s.kind==='score'?`<div class="step-pts">${s.max}</div>`:''}`;
+    nav.appendChild(el);
+  });
+}
+
+function render(){
+  const s = SECTIONS[state.current];
+  canvas.innerHTML='';
+  const panel = document.createElement('div');
+  panel.className='panel show';
+
+  if(s.kind==='welcome') panel.innerHTML = welcomeHTML();
+  else if(s.kind==='identity') panel.innerHTML = identityHTML();
+  else if(s.kind==='score') panel.innerHTML = scoreHTML(s);
+  else if(s.kind==='review') panel.innerHTML = reviewHTML();
+
+  canvas.appendChild(panel);
+  window.scrollTo({top:0,behavior:'smooth'});
+  wire(s);
+  renderStepNav();
+  updateProgress();
+  updateScore();
+}
+
+/* ---------- WELCOME ---------- */
+function welcomeHTML(){
+  return `
+  <div class="welcome">
+    <div class="badge"><span class="dot"></span> Takes about 15 minutes · Save anytime</div>
+    <h1>Let's build your<br><em>community score.</em></h1>
+    <p>The CEIS™ score shows customers exactly how your business strengthens the local economy. A few honest answers is all it takes to start — and every question explains how it can help you grow.</p>
+    <div class="wgrid">
+      <div class="wcard">
+        <div class="wcard-ic" style="background:linear-gradient(135deg,#1A3A8F,#1A8FA0)">${iconFor('loc')}</div>
+        <h3>Locality · 40 pts</h3>
+        <p>Where your money flows — suppliers, staff, ownership, and banking.</p>
+      </div>
+      <div class="wcard">
+        <div class="wcard-ic" style="background:linear-gradient(135deg,#1A8FA0,#7DC832)">${iconFor('sus')}</div>
+        <h3>Sustainability · 30 pts</h3>
+        <p>Waste, energy, and the products you choose to carry.</p>
+      </div>
+      <div class="wcard">
+        <div class="wcard-ic" style="background:linear-gradient(135deg,#1A3A8F,#22B5CC)">${iconFor('trn')}</div>
+        <h3>Transparency · 30 pts</h3>
+        <p>Fair wages, community giving, and openness about where the dollar goes.</p>
+      </div>
+    </div>
+    <div class="wmeta">
+      <div><div class="n">0–100</div><div class="l">Your CEIS™ score</div></div>
+      <div><div class="n">10</div><div class="l">Quick sections</div></div>
+      <div><div class="n">+ Margins</div><div class="l">Every answer earns its keep</div></div>
+    </div>
+    <div class="nav-row" style="justify-content:center;border:none">
+      <button class="btn btn-primary glow" onclick="next()">Begin assessment
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+/* ---------- IDENTITY ---------- */
+function identityHTML(){
+  const i = state.identity;
+  return `
+  <span class="sec-tag tag-id">Step 1 · Verify your business</span>
+  <h1 class="q">First, let's confirm who you are.</h1>
+  <p class="q-sub">Verified businesses earn a trust badge customers look for — and verification is what makes your score credible, just like a credit score. This information is never shown publicly.</p>
+
+  <div class="why">
+    <div class="why-h">${sparkIcon()} Why this matters to your business</div>
+    <div class="why-body">A <strong>verified</strong> profile consistently out-converts an unverified one — customers trust a score that's been independently confirmed. We check your details against public business records and Dun &amp; Bradstreet, the same source lenders use, so your score carries real weight.</div>
+    <div class="margin-flag">${checkIcon()} Verified businesses win more customer trust — and more sales.</div>
+  </div>
+
+  <div class="field">
+    <label class="field-label">Legal business name</label>
+    <input type="text" id="id_name" placeholder="e.g. Woodward Coffee Co. LLC" value="${i.name||''}">
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label class="field-label">EIN (Employer ID Number)</label>
+      <div class="field-hint">Your federal tax ID — like an SSN for your business.</div>
+      <input type="text" id="id_ein" placeholder="XX-XXXXXXX" value="${i.ein||''}">
+    </div>
+    <div class="field">
+      <label class="field-label">State of registration</label>
+      <div class="field-hint">We verify your good standing automatically.</div>
+      <input type="text" id="id_state" placeholder="e.g. Michigan" value="${i.state||''}">
+    </div>
+  </div>
+  <div class="field">
+    <label class="field-label">What kind of business are you?</label>
+    <div class="field-hint">This sets your scoring track — a restaurant and a hardware store are scored by different standards that fit how each actually serves the community.</div>
+    <select id="id_cat">
+      <option value="">Choose your category…</option>
+      <option ${i.cat==='restaurant'?'selected':''} value="restaurant">Restaurant / Café / Food Service</option>
+      <option ${i.cat==='grocery'?'selected':''} value="grocery">Grocery / Specialty Food</option>
+      <option ${i.cat==='retail'?'selected':''} value="retail">Retail — General</option>
+      <option ${i.cat==='hardware'?'selected':''} value="hardware">Retail — Hardware / Home</option>
+      <option ${i.cat==='services'?'selected':''} value="services">Personal Services (salon, spa, cleaning)</option>
+      <option ${i.cat==='professional'?'selected':''} value="professional">Professional Services (legal, accounting, etc.)</option>
+      <option ${i.cat==='fitness'?'selected':''} value="fitness">Health &amp; Fitness</option>
+      <option ${i.cat==='other'?'selected':''} value="other">Something else</option>
+    </select>
+  </div>
+  <div class="field">
+    <label class="field-label">D-U-N-S number <span style="color:var(--lgray);font-weight:500">(optional)</span></label>
+    <div class="field-hint">Have a Dun &amp; Bradstreet number? Great — it unlocks our highest verification tier. Don't have one? Leave it blank and we'll help you register for free.</div>
+    <input type="text" id="id_duns" placeholder="00-000-0000" value="${i.duns||''}">
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" onclick="prev()">Back</button>
+    <button class="btn btn-primary" onclick="saveIdentity()">Continue
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>`;
+}
+
+/* ---------- SCORE SECTION ---------- */
+function scoreHTML(s){
+  const idx = scoreSections.indexOf(s)+1;
+  const ans = state.answers[s.id];
+  const hasEv = state.evidence[s.id];
+  const statsHTML = (s.why.stats||[]).map(x=>`<span class="why-stat">${x}</span>`).join('');
+  return `
+  <span class="sec-tag ${s.tagClass}">${iconForInline(s.pillar)} ${s.tag} · ${s.max} points <span class="sec-pts-pill">${idx} of 10</span></span>
+  <h1 class="q">${s.q}</h1>
+  <p class="q-sub">${s.sub}</p>
+
+  <div class="why">
+    <div class="why-h">${sparkIcon()} Why this helps your business</div>
+    <div class="why-body">${s.why.body}</div>
+    ${statsHTML?`<div style="margin-top:13px">${statsHTML}</div>`:''}
+    ${s.why.margin?`<div class="margin-flag">${trendIcon()} ${s.why.margin}</div>`:''}
+  </div>
+
+  <div class="opt-label">Choose what fits best — be honest, you can improve any score over time</div>
+  <div class="opts" id="opts_${s.id}">
+    ${s.opts.map((o,i)=>`
+      <div class="opt ${ans===i?'sel':''}" onclick="pick('${s.id}',${i})">
+        <div class="opt-radio"></div>
+        <div class="opt-txt">
+          <div class="opt-main">${o.t}</div>
+          ${o.d?`<div class="opt-desc">${o.d}</div>`:''}
+        </div>
+        <div class="opt-pts">+${(o.p*s.max).toFixed(o.p*s.max%1===0?0:1)}</div>
+      </div>`).join('')}
+  </div>
+
+  <div class="evidence">
+    <div class="evidence-h">
+      <div class="evidence-title">${docIcon()} ${s.ev.title}</div>
+      <div class="tier-badge ${s.ev.tierClass}">${s.ev.tier}</div>
+    </div>
+    <div class="evidence-desc">${s.ev.desc}</div>
+    <div class="drop ${hasEv?'has':''}" id="drop_${s.id}" onclick="fakeUpload('${s.id}')">
+      ${hasEv
+        ? `<svg viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
+           <div class="drop-main">${hasEv} — uploaded ✓</div>
+           <div class="drop-sub">Click to replace</div>`
+        : `<svg viewBox="0 0 24 24" fill="none"><path d="M12 15V3m0 0L8 7m4-4l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+           <div class="drop-main">Drag a file here or click to upload</div>
+           <div class="drop-sub">PDF, image, or spreadsheet · up to 25 MB</div>`}
+    </div>
+    <div class="sub-guide">${bulbIcon()} <div>${s.ev.sub}</div></div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" onclick="prev()">Back</button>
+    <button class="btn btn-primary" onclick="next()">Save &amp; continue
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>`;
+}
+
+/* ---------- REVIEW ---------- */
+function reviewHTML(){
+  const { composite, tier } = computeScore();
+  const rows = scoreSections.map(s=>{
+    const ans = state.answers[s.id];
+    const answered = ans!==undefined;
+    const pts = answered ? (s.opts[ans].p*s.max) : 0;
+    return `<div class="review-row">
+      <div class="rr-check ${answered?'ok':'no'}">
+        ${answered
+          ?'<svg viewBox="0 0 24 24" fill="none" style="color:#2c9c4c"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          :'<svg viewBox="0 0 24 24" fill="none" style="color:#9AA0AB"><path d="M12 8v5M12 16v.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'}
+      </div>
+      <div>
+        <div class="rr-name">${s.label}</div>
+        <div class="rr-tag">${s.tag}${state.evidence[s.id]?' · doc attached':' · no doc yet'}</div>
+      </div>
+      <div class="rr-pts" style="margin-left:auto">${answered?pts.toFixed(pts%1===0?0:1):'—'} / ${s.max}</div>
+    </div>`;
+  }).join('');
+
+  const allAnswered = scoreSections.every(s=>state.answers[s.id]!==undefined);
+
+  return `
+  <span class="sec-tag tag-id">Final step · Review</span>
+  <h1 class="q">Here's your live score.</h1>
+  <p class="q-sub">This preview reflects your answers right now. When you submit, our team verifies your documents and finalizes your official CEIS™ score — which can rise as you add certifications and verified records.</p>
+
+  <div class="final-score-card">
+    <div class="fsc-label">Your projected CEIS™ score</div>
+    <div class="fsc-num"><span>${composite.toFixed(1)}</span></div>
+    <div class="fsc-tier">${tier}</div>
+    <div class="fsc-note">Preview only. Verification can raise your score — higher-tier evidence unlocks the full points in each section.</div>
+  </div>
+
+  <div class="review-card">${rows}</div>
+
+  <div class="why" style="margin-top:6px">
+    <div class="why-h">${sparkIcon()} What happens after you submit</div>
+    <div class="why-body">We review every submission personally — usually within <strong>10 business days</strong>. We verify your documents, run your Dun &amp; Bradstreet and public-record checks, and finalize your score. Then your public profile and QR scorecard go live, and you'll get a prioritized report showing the fastest ways to climb higher.</div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" onclick="prev()">Back</button>
+    <button class="btn btn-primary glow" onclick="submitForm()" ${allAnswered?'':'disabled'}>
+      ${allAnswered?'Submit for verification':'Answer all sections to submit'}
+      ${allAnswered?'<svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+    </button>
+  </div>`;
+}
+
+/* ============================================================
+   SCORING ENGINE
+   ============================================================ */
+function computeScore(){
+  let loc=0,sus=0,trn=0;
+  scoreSections.forEach(s=>{
+    const ans = state.answers[s.id];
+    if(ans===undefined) return;
+    const pts = s.opts[ans].p * s.max;
+    if(s.pillar==='loc') loc+=pts;
+    else if(s.pillar==='sus') sus+=pts;
+    else trn+=pts;
+  });
+  loc=Math.min(loc,40); sus=Math.min(sus,30); trn=Math.min(trn,30);
+  const composite = loc+sus+trn;
+  return { loc, sus, trn, composite, tier:tierName(composite) };
+}
+function tierName(score){
+  if(score>=90) return 'Community Champion';
+  if(score>=75) return 'Above & Beyond';
+  if(score>=60) return 'Solid Commitment';
+  if(score>=40) return 'Growing Intentionally';
+  if(score>0)   return 'Beginning the Journey';
+  return 'Start your assessment';
+}
+
+function updateScore(){
+  const { loc, sus, trn, composite, tier } = computeScore();
+  const ls = document.getElementById('liveScore');
+  const answered = Object.keys(state.answers).length>0;
+  if(answered){
+    ls.classList.add('scoring');
+    ls.innerHTML = `${composite.toFixed(1)}<span class="pt">/100</span>`;
+  } else {
+    ls.classList.remove('scoring');
+    ls.innerHTML = `—<span class="pt">/100</span>`;
+  }
+  document.getElementById('liveTier').textContent = tier;
+  document.getElementById('vLoc').textContent = `${loc.toFixed(loc%1===0?0:1)} / 40`;
+  document.getElementById('vSus').textContent = `${sus.toFixed(sus%1===0?0:1)} / 30`;
+  document.getElementById('vTrn').textContent = `${trn.toFixed(trn%1===0?0:1)} / 30`;
+  document.getElementById('bLoc').style.width = (loc/40*100)+'%';
+  document.getElementById('bSus').style.width = (sus/30*100)+'%';
+  document.getElementById('bTrn').style.width = (trn/30*100)+'%';
+}
+
+/* ============================================================
+   PROGRESS
+   ============================================================ */
+function isComplete(i){
+  const s = SECTIONS[i];
+  if(s.kind==='score') return state.answers[s.id]!==undefined;
+  if(s.kind==='identity') return !!state.identity.name && !!state.identity.cat;
+  return false;
+}
+function updateProgress(){
+  const total = scoreSections.length + 1; // +identity
+  let done = scoreSections.filter(s=>state.answers[s.id]!==undefined).length;
+  if(state.identity.name && state.identity.cat) done++;
+  const pct = Math.round(done/total*100);
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progTxt').textContent = pct+'% complete';
+}
+
+/* ============================================================
+   INTERACTIONS
+   ============================================================ */
+function pick(id,i){
+  state.answers[id]=i;
+  document.querySelectorAll(`#opts_${id} .opt`).forEach((el,n)=>el.classList.toggle('sel',n===i));
+  updateScore(); renderStepNav(); updateProgress();
+}
+function fakeUpload(id){
+  const names=['statement.pdf','invoice_batch.pdf','payroll_export.xlsx','certificate.pdf','utility_bills.pdf','records.pdf'];
+  state.evidence[id]=names[Math.floor(Math.random()*names.length)];
+  render();
+}
+function saveIdentity(){
+  state.identity = {
+    name: document.getElementById('id_name').value,
+    ein: document.getElementById('id_ein').value,
+    state: document.getElementById('id_state').value,
+    cat: document.getElementById('id_cat').value,
+    duns: document.getElementById('id_duns').value,
+  };
+  if(!state.identity.name || !state.identity.cat){
+    alert('Please add your business name and category to continue.');
+    return;
+  }
+  next();
+}
+function wire(s){
+  // nothing extra needed; handlers are inline
+}
+
+/* ---------- inline icons ---------- */
+function sparkIcon(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';}
+function trendIcon(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M3 17l6-6 4 4 7-7M14 8h5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+function checkIcon(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+function docIcon(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';}
+function bulbIcon(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0012 2z" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+function iconForInline(p){
+  const c = p==='loc'?'#138f83':p==='sus'?'#2c9c4c':'#1a5fb4';
+  return `<span style="display:inline-flex;width:14px;height:14px;color:${c}">${iconFor(p)}</span>`;
+}
+
+/* ============================================================
+   NAV
+   ============================================================ */
+function goTo(i){ state.current=i; render(); }
+function next(){ if(state.current<SECTIONS.length-1){ state.current++; render(); } }
+function prev(){ if(state.current>0){ state.current--; render(); } }
+function saveExit(){
+  const {composite}=computeScore();
+  alert(`Progress saved ✓\n\nYour work is safe — you can pick up right where you left off.\nCurrent live score: ${composite.toFixed(1)} / 100`);
+}
+async function submitForm(){
+  const { loc, sus, trn, composite, tier } = computeScore();
+
+  // Show a saving state while we write to the database.
+  canvas.innerHTML = `
+  <div class="panel show" style="text-align:center;padding-top:60px">
+    <div class="pulse" style="font-size:40px;margin-bottom:18px">⏳</div>
+    <h1 class="serif" style="font-size:30px;font-weight:600;letter-spacing:-.5px">Saving your assessment…</h1>
+    <p style="font-size:15px;color:var(--gray);margin-top:8px">Securely recording your submission.</p>
+  </div>`;
+  window.scrollTo({top:0,behavior:'smooth'});
+
+  // Build the record from the user's answers.
+  const payload = {
+    business_name: state.identity.name || 'Unnamed business',
+    ein:        state.identity.ein   || null,
+    reg_state:  state.identity.state || null,
+    category:   state.identity.cat   || null,
+    duns:       state.identity.duns  || null,
+    answers:    state.answers,
+    evidence:   state.evidence,
+    score_loc:  Number(loc.toFixed(2)),
+    score_sus:  Number(sus.toFixed(2)),
+    score_trn:  Number(trn.toFixed(2)),
+    score_total:Number(composite.toFixed(2)),
+    tier:       tier,
+    status:     'submitted',
+  };
+
+  let saved = false, errMsg = null;
+  // Client-side reference code shown to the user (submissions stay private — no read-back).
+  const refShort = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8).toUpperCase();
+  if (sb) {
+    try {
+      // Submissions are tied to the logged-in business owner.
+      const { data: u } = await sb.auth.getUser();
+      const uid = u && u.user ? u.user.id : null;
+      if (!uid) {
+        errMsg = 'Please log in as a business owner first, then resubmit. (Open the assessment from the Pricing screen after signing in.)';
+      } else {
+        const { error } = await sb
+          .from('ceis_submissions')
+          .insert({ ...payload, ref_code: refShort, user_id: uid });
+        if (error) throw error;
+        saved = true;
+      }
+    } catch (e) {
+      errMsg = (e && e.message) || 'Unknown error';
+    }
+  } else {
+    errMsg = 'No database connection configured.';
+  }
+  const statusLine = saved
+    ? `<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(125,200,50,.12);color:#2c9c4c;border:1px solid rgba(125,200,50,.4);border-radius:99px;padding:7px 16px;font-size:13px;font-weight:700;margin-bottom:24px">
+         ${checkIcon()} Saved to your DollarVote record${refShort?` · Ref ${refShort}`:''}
+       </div>`
+    : `<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(193,68,14,.1);color:#C1440E;border:1px solid rgba(193,68,14,.3);border-radius:99px;padding:7px 16px;font-size:13px;font-weight:700;margin-bottom:24px">
+         ⚠ Couldn't save automatically — your answers are safe in this window. (${errMsg})
+       </div>`;
+
+  canvas.innerHTML = `
+  <div class="panel show" style="text-align:center;padding-top:40px">
+    <div style="width:90px;height:90px;border-radius:50%;background:var(--grad);display:grid;place-items:center;margin:0 auto 28px;box-shadow:0 20px 50px rgba(26,143,160,.4)">
+      <svg viewBox="0 0 24 24" fill="none" width="44" height="44"><path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h1 class="serif" style="font-size:42px;font-weight:600;letter-spacing:-1px;margin-bottom:14px">You're submitted!</h1>
+    ${statusLine}
+    <p style="font-size:18px;color:var(--gray);max-width:480px;margin:0 auto 30px;line-height:1.6">
+      Your projected score is <strong style="color:var(--ink)">${composite.toFixed(1)}</strong> — <strong style="color:var(--teal)">${tier}</strong>.
+      We'll verify your documents and finalize your official CEIS™ score within 10 business days, then your profile goes live.
+    </p>
+    <div class="final-score-card" style="max-width:420px;margin:0 auto">
+      <div class="fsc-label">Projected CEIS™ Score</div>
+      <div class="fsc-num"><span>${composite.toFixed(1)}</span></div>
+      <div class="fsc-tier">${tier}</div>
+    </div>
+  </div>`;
+  document.getElementById('progFill').style.width='100%';
+  document.getElementById('progTxt').textContent = saved ? 'Submitted ✓' : 'Submit failed';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+render();
+</script>
+</body>
+</html>
