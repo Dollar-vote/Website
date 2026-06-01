@@ -1,5 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import mapboxgl from "mapbox-gl";
 import { supabase } from "./supabaseClient";
+
+// Mapbox public token (safe in browser). When absent, the map falls back to the mockup.
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // ─────────────────────────────────────────────
 // LOGO COLOR SYSTEM (matching brand)
@@ -93,6 +97,8 @@ function rowToBiz(r) {
     emoji: r.emoji || "🏬",
     local: Number(r.local_per_10) || 0,
     distance: r.distance || "",
+    lat: r.lat != null ? Number(r.lat) : null,
+    lng: r.lng != null ? Number(r.lng) : null,
   };
 }
 
@@ -400,16 +406,75 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
   );
 }
 
-// SCREEN 3 — Map View (Google Maps-style)
-function MapScreen({ go = () => {} }) {
+// Real interactive Mapbox map — renders only when a token + coordinates exist.
+function MapboxMap({ businesses, selectedId, onSelect }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+
+  // Only businesses that have real coordinates can be plotted.
+  const pts = businesses.filter(b => b.lat != null && b.lng != null);
+
+  // Create the map once.
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    const center = pts.length
+      ? [pts.reduce((s, b) => s + Number(b.lng), 0) / pts.length,
+         pts.reduce((s, b) => s + Number(b.lat), 0) / pts.length]
+      : [-83.05, 42.35]; // Detroit fallback
+    const map = new mapboxgl.Map({
+      container: containerRef.current,
+      style: "mapbox://styles/mapbox/light-v11",
+      center,
+      zoom: 11.2,
+      attributionControl: false,
+    });
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
+  }, []); // eslint-disable-line
+
+  // (Re)draw score markers whenever the businesses change.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    pts.forEach(b => {
+      const col = scoreColor(b.score);
+      const el = document.createElement("div");
+      el.style.cssText = `cursor:pointer;background:#fff;border:2px solid ${col};border-radius:10px;
+        padding:3px 7px;box-shadow:0 3px 8px rgba(0,0,0,.25);font-family:${F.serif};
+        font-weight:700;font-size:13px;color:${col};line-height:1;`;
+      el.textContent = b.score;
+      el.addEventListener("click", (e) => { e.stopPropagation(); onSelect(b); });
+      const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([Number(b.lng), Number(b.lat)])
+        .addTo(map);
+      markersRef.current.push(marker);
+    });
+  }, [businesses]); // eslint-disable-line
+
+  return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+}
+
+// SCREEN 3 — Map View. Real Mapbox map when a token is configured; mockup otherwise.
+function MapScreen({ go = () => {}, biz = SAMPLE_BIZ }) {
+  const withCoords = biz.filter(b => b.lat != null && b.lng != null);
+  const liveMap = !!MAPBOX_TOKEN && withCoords.length > 0;
+  // The business shown in the bottom sheet — defaults to the top-scored one.
+  const [selected, setSelected] = useState(null);
+  const sel = selected || biz[0] || SAMPLE_BIZ[0];
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, position: "relative" }}>
       {/* Search bar overlay */}
       <div style={{ position: "absolute", top: 44, left: 14, right: 14, zIndex: 10 }}>
         <div style={{ ...glass(0.7), borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 14 }}>🔍</span>
-          <span style={{ fontFamily: F.body, fontSize: 12.5, color: C.ink, flex: 1, fontWeight: 600 }}>Eastern Market, Detroit</span>
-          <span style={{ fontFamily: F.mono, fontSize: 9, color: C.teal, fontWeight: 700, letterSpacing: "0.06em" }}>6 RESULTS</span>
+          <span style={{ fontFamily: F.body, fontSize: 12.5, color: C.ink, flex: 1, fontWeight: 600 }}>Detroit, MI</span>
+          <span style={{ fontFamily: F.mono, fontSize: 9, color: C.teal, fontWeight: 700, letterSpacing: "0.06em" }}>{(liveMap ? withCoords.length : biz.length)} RESULTS</span>
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
           {["All", "90+", "75+", "Verified", "☕", "🍽️"].map((f, i) => (
@@ -418,54 +483,55 @@ function MapScreen({ go = () => {} }) {
         </div>
       </div>
 
-      {/* Map area */}
+      {/* Map area — real Mapbox, or the styled mockup as a fallback */}
       <div style={{ flex: 1, background: "#E8EDF5", position: "relative", overflow: "hidden" }}>
-        {/* Roads */}
-        {[20, 38, 56, 74].map(p => (
-          <div key={`h${p}`} style={{ position: "absolute", left: 0, right: 0, top: `${p}%`, height: 3, background: "rgba(255,255,255,0.7)" }} />
-        ))}
-        {[15, 35, 55, 75].map(p => (
-          <div key={`v${p}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${p}%`, width: 3, background: "rgba(255,255,255,0.7)" }} />
-        ))}
-        {/* River */}
-        <div style={{ position: "absolute", top: "78%", left: 0, right: 0, height: 30, background: "#C5D5F0" }} />
-
-        {/* Markers */}
-        {[
-          { x: 22, y: 30, score: 91 },
-          { x: 48, y: 24, score: 87 },
-          { x: 38, y: 50, score: 88 },
-          { x: 68, y: 42, score: 85 },
-          { x: 72, y: 64, score: 88 },
-          { x: 18, y: 60, score: 79 },
-        ].map((m, i) => (
-          <div key={i} onClick={() => go("profile")} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", cursor: "pointer" }}>
-            <div style={{ background: C.white, borderRadius: 10, padding: "5px 8px 4px", border: `2px solid ${scoreColor(m.score)}`, boxShadow: "0 4px 8px rgba(0,0,0,0.2)", minWidth: 38, textAlign: "center", position: "relative" }}>
-              <div style={{ fontFamily: F.serif, fontSize: 13, fontWeight: 700, color: scoreColor(m.score), lineHeight: 1 }}>{m.score}</div>
-              <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)", border: "6px solid transparent", borderTop: `6px solid ${scoreColor(m.score)}`, borderBottom: "none" }} />
-            </div>
-          </div>
-        ))}
-
-        {/* Center "you are here" pin */}
-        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 16, height: 16, borderRadius: "50%", background: C.blue, border: "3px solid white", boxShadow: "0 0 0 8px rgba(26,58,143,0.2)" }} />
+        {liveMap ? (
+          <MapboxMap businesses={biz} selectedId={sel?.id} onSelect={setSelected} />
+        ) : (
+          <>
+            {/* Mockup fallback (shown until a Mapbox token is added) */}
+            {[20, 38, 56, 74].map(p => (
+              <div key={`h${p}`} style={{ position: "absolute", left: 0, right: 0, top: `${p}%`, height: 3, background: "rgba(255,255,255,0.7)" }} />
+            ))}
+            {[15, 35, 55, 75].map(p => (
+              <div key={`v${p}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${p}%`, width: 3, background: "rgba(255,255,255,0.7)" }} />
+            ))}
+            <div style={{ position: "absolute", top: "78%", left: 0, right: 0, height: 30, background: "#C5D5F0" }} />
+            {[
+              { x: 22, y: 30 }, { x: 48, y: 24 }, { x: 38, y: 50 },
+              { x: 68, y: 42 }, { x: 72, y: 64 }, { x: 18, y: 60 },
+            ].map((m, i) => {
+              const b = biz[i] || SAMPLE_BIZ[i];
+              return (
+                <div key={i} onClick={() => setSelected(b)} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", cursor: "pointer" }}>
+                  <div style={{ background: C.white, borderRadius: 10, padding: "5px 8px 4px", border: `2px solid ${scoreColor(b.score)}`, boxShadow: "0 4px 8px rgba(0,0,0,0.2)", minWidth: 38, textAlign: "center", position: "relative" }}>
+                    <div style={{ fontFamily: F.serif, fontSize: 13, fontWeight: 700, color: scoreColor(b.score), lineHeight: 1 }}>{b.score}</div>
+                    <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)", border: "6px solid transparent", borderTop: `6px solid ${scoreColor(b.score)}`, borderBottom: "none" }} />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 16, height: 16, borderRadius: "50%", background: C.blue, border: "3px solid white", boxShadow: "0 0 0 8px rgba(26,58,143,0.2)" }} />
+            <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", fontFamily: F.mono, fontSize: 8, color: C.soft, background: "rgba(255,255,255,0.8)", padding: "3px 8px", borderRadius: 50, whiteSpace: "nowrap" }}>PREVIEW MAP · add Mapbox token for live map</div>
+          </>
+        )}
       </div>
 
       {/* Bottom sheet — selected business preview (Upside style) */}
       <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(24px) saturate(180%)", WebkitBackdropFilter: "blur(24px) saturate(180%)", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: "14px 18px 12px", boxShadow: "0 -4px 30px rgba(15,21,37,0.12)", position: "relative" }}>
         <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "0 auto 12px" }} />
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.ltBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧼</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink }}>Maria's Soap Studio</div>
-            <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>Eastern Market · 0.4 mi away</div>
-            <Tag color={C.green}>✓ Champion · 91/100</Tag>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.ltBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{sel.emoji || "🏬"}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.name}</div>
+            <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{sel.hood || sel.cat}{sel.distance ? ` · ${sel.distance}` : ""}</div>
+            <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
           </div>
-          <ScoreBadge score={91} size={42} />
+          <ScoreBadge score={sel.score} size={42} />
         </div>
         <div style={{ background: C.ltLime, borderRadius: 10, padding: "8px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 14 }}>💚</span>
-          <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, flex: 1 }}><strong>$8.30 of every $10 stays local</strong></span>
+          <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, flex: 1 }}><strong>${(sel.local || 0).toFixed(2)} of every $10 stays local</strong></span>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={() => go("profile")} style={{ flex: 1, background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px", border: "none", borderRadius: 10, cursor: "pointer" }}>View Profile</button>
@@ -1255,7 +1321,7 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
 const SCREENS = {
   welcome:       { flow: "consumer", screen: "01 · WELCOME",       label: "Choose your path — shopper or business owner",      render: (nav) => <WelcomeScreen {...nav} /> },
   consumerHome:  { flow: "consumer", screen: "02 · CONSUMER HOME", label: "Home feed with 'Local Impact' card (Upside-style)",  render: (nav, data) => <ConsumerHomeScreen {...nav} biz={data.biz} source={data.source} /> },
-  map:           { flow: "consumer", screen: "03 · MAP",           label: "Map view — score markers + bottom sheet preview",    render: (nav) => <MapScreen {...nav} /> },
+  map:           { flow: "consumer", screen: "03 · MAP",           label: "Map view — score markers + bottom sheet preview",    render: (nav, data) => <MapScreen {...nav} biz={data.biz} /> },
   categories:    { flow: "consumer", screen: "04 · CATEGORIES",    label: "Browse by category — Restaurant, Retail, Services",  render: (nav) => <CategoriesScreen {...nav} /> },
   profile:       { flow: "consumer", screen: "05 · PROFILE",       label: "Business detail — 'Where your $10 goes' breakdown",  render: (nav) => <BusinessProfileScreen {...nav} /> },
   impact:        { flow: "consumer", screen: "06 · MY IMPACT",     label: "Personal impact tracker — your local % over time",   render: (nav) => <ImpactScreen {...nav} /> },
