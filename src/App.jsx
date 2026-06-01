@@ -275,7 +275,7 @@ function WelcomeScreen({ go = () => {} }) {
       <div style={{ position: "relative", zIndex: 2, marginTop: 40 }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.white, margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: F.serif, fontSize: 30, fontWeight: 700, color: C.blue }}>$</div>
+          <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.white, margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src="/logo.png" alt="DollarVote" style={{ width: 46, height: 46, objectFit: "contain" }} /></div>
           <div style={{ fontFamily: F.serif, fontSize: 24, color: C.white, fontWeight: 700, letterSpacing: "-0.01em" }}>DollarVote</div>
         </div>
 
@@ -1440,7 +1440,7 @@ export default function App() {
       {/* Top header */}
       <div style={{ maxWidth: 1400, margin: "0 auto 28px", textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: GRAD, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.white }}>$</div>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.white, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src="/logo.png" alt="DollarVote" style={{ width: 34, height: 34, objectFit: "contain" }} /></div>
           <span style={{ fontFamily: F.serif, fontSize: 28, fontWeight: 700, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>DollarVote</span>
         </div>
         <div style={{ fontFamily: F.mono, fontSize: 11, color: C.lime, letterSpacing: "0.18em", marginBottom: 10, fontWeight: 600 }}>INTERACTIVE PROTOTYPE · INSPIRED BY UPSIDE</div>
