@@ -44,7 +44,7 @@
   }
   @media(max-width:980px){.side{position:relative;height:auto}}
   .brand{display:flex;align-items:center;gap:11px;margin-bottom:30px}
-  .brand-mark{width:34px;height:34px;border-radius:9px;background:var(--grad);display:grid;place-items:center;flex-shrink:0;box-shadow:0 4px 14px rgba(46,196,182,.4)}
+  .brand-mark{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;flex-shrink:0;overflow:hidden;box-shadow:0 4px 14px rgba(46,196,182,.2)}
   .brand-mark svg{width:19px;height:19px}
   .brand-name{font-weight:800;font-size:18px;letter-spacing:-.3px}
   .brand-name span{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -246,7 +246,7 @@
   <aside class="side">
     <div class="brand">
       <div class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M7 6h7a3 3 0 010 6H8a3 3 0 000 6h8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <img src="/logo.png" alt="DollarVote" style="width:26px;height:26px;object-fit:contain">
       </div>
       <div class="brand-name">Dollar<span>Vote</span></div>
     </div>

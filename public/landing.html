@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DollarVote — Every dollar is a vote</title>
+<meta name="description" content="Every person's truth lies within their dollar. Know where your money travels, shape which businesses thrive, and reclaim the power of we the people.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1A3A8F; --blueMid:#1A5BA0; --teal:#1A8FA0; --tealLt:#22B5CC;
+    --lime:#7DC832; --limeLt:#96E040;
+    --ink:#0B1525; --dark:#1D1D1F; --mid:#5E646E; --soft:#9AA0AB;
+    --border:#E8E8ED; --bg:#FFFFFF; --wash:#F5F7FB; --washLime:#F2F9EA;
+    --green:#1A8F45;
+    --grad:linear-gradient(135deg,#1A3A8F 0%,#1A8FA0 52%,#7DC832 100%);
+    --gradText:linear-gradient(120deg,#1A3A8F,#1A8FA0 55%,#7DC832);
+    --r:20px; --rsm:14px;
+    --shadow:0 10px 40px rgba(11,21,37,.08);
+    --shadowLg:0 30px 70px rgba(11,21,37,.14);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Helvetica Neue",sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.6;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  .grad-text{background:var(--gradText);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .eyebrow{font-size:12.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--teal)}
+
+  /* ---------- NAV ---------- */
+  nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.8);backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);border-bottom:1px solid var(--border)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.3px}
+  .brand .mark{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid var(--border);display:grid;place-items:center;overflow:hidden;box-shadow:0 4px 14px rgba(26,143,160,.18)}
+  .brand .mark img{width:28px;height:28px;object-fit:contain}
+  .nav-links{display:flex;align-items:center;gap:28px}
+  .nav-links a{font-size:14px;font-weight:600;color:var(--mid);transition:color .15s}
+  .nav-links a:hover{color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-weight:700;border-radius:12px;cursor:pointer;border:none;transition:transform .15s,box-shadow .15s;white-space:nowrap}
+  .btn-sm{font-size:13.5px;padding:9px 18px}
+  .btn-lg{font-size:16px;padding:15px 30px}
+  .btn-grad{background:var(--grad);color:#fff;box-shadow:0 8px 24px rgba(26,143,160,.3)}
+  .btn-grad:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(26,143,160,.4)}
+  .btn-ink{background:var(--ink);color:#fff}
+  .btn-ink:hover{transform:translateY(-2px);box-shadow:var(--shadowLg)}
+  .btn-out{background:#fff;color:var(--ink);border:1.5px solid var(--border)}
+  .btn-out:hover{border-color:var(--teal);color:var(--teal)}
+  @media(max-width:720px){.nav-links a:not(.btn){display:none}}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;overflow:hidden;padding:90px 0 80px;text-align:center}
+  .hero::before{content:"";position:absolute;inset:0;z-index:-1;
+    background:radial-gradient(ellipse 60% 50% at 50% -10%,rgba(26,143,160,.10),transparent 60%),radial-gradient(ellipse 50% 40% at 85% 30%,rgba(125,200,50,.08),transparent 55%)}
+  .hero .pill{display:inline-flex;align-items:center;gap:8px;background:var(--washLime);border:1px solid rgba(125,200,50,.35);color:var(--green);font-size:13px;font-weight:700;padding:7px 16px;border-radius:50px;margin-bottom:26px}
+  .hero .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 4px rgba(125,200,50,.2)}
+  h1{font-size:clamp(2.4rem,6vw,4.4rem);font-weight:900;letter-spacing:-2px;line-height:1.02}
+  .hero p.lede{font-size:clamp(1.05rem,2.2vw,1.4rem);color:var(--mid);max-width:680px;margin:24px auto 0;line-height:1.55}
+  .hero .cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:38px}
+  .hero .micro{font-size:13px;color:var(--soft);margin-top:18px}
+
+  /* big stat ribbon */
+  .ribbon{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:60px;box-shadow:var(--shadow)}
+  .ribbon .cell{background:#fff;padding:26px 18px}
+  .ribbon .n{font-size:clamp(1.8rem,4vw,2.7rem);font-weight:900;letter-spacing:-1px}
+  .ribbon .l{font-size:13px;color:var(--mid);font-weight:600;margin-top:4px}
+  @media(max-width:680px){.ribbon{grid-template-columns:1fr}}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:84px 0}
+  .sec-head{text-align:center;max-width:720px;margin:0 auto 50px}
+  .sec-head h2{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:850;letter-spacing:-1.2px;line-height:1.08;margin-top:12px}
+  .sec-head p{font-size:17px;color:var(--mid);margin-top:16px}
+
+  /* journey of a dollar */
+  .journey{background:var(--wash);border-radius:28px;padding:54px 40px}
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch;margin-top:10px}
+  .flow .node{background:#fff;border:1px solid var(--border);border-radius:var(--rsm);padding:18px 14px;text-align:center;position:relative}
+  .flow .node .ic{font-size:24px}
+  .flow .node .t{font-size:13px;font-weight:700;margin-top:8px;line-height:1.3}
+  .flow .node .s{font-size:11.5px;color:var(--soft);margin-top:4px}
+  .flow .arrow{align-self:center;text-align:center;color:var(--teal);font-weight:800;font-size:18px}
+  @media(max-width:760px){.flow{grid-template-columns:1fr;gap:8px}.flow .arrow{transform:rotate(90deg)}}
+  .multiplier{display:flex;align-items:center;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:34px;background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:24px}
+  .multiplier .big{font-size:clamp(2.2rem,5vw,3.4rem);font-weight:900;letter-spacing:-1.5px;line-height:1}
+  .multiplier .txt{font-size:15px;color:var(--mid);max-width:430px;text-align:left}
+
+  /* democracy band */
+  .band{background:var(--ink);color:#fff;border-radius:28px;padding:64px 44px;text-align:center;position:relative;overflow:hidden}
+  .band::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 50% 70% at 50% 0,rgba(26,143,160,.3),transparent 60%)}
+  .band .inner{position:relative}
+  .band h2{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:850;letter-spacing:-1.2px;line-height:1.12}
+  .band p{font-size:17px;color:rgba(255,255,255,.78);max-width:680px;margin:18px auto 0;line-height:1.6}
+  .band .we{background:var(--gradText);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* case studies */
+  .cards2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:780px){.cards2{grid-template-columns:1fr}}
+  .case{border:1px solid var(--border);border-radius:var(--r);padding:30px;background:#fff;box-shadow:var(--shadow)}
+  .case .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--teal);background:var(--wash);padding:5px 11px;border-radius:50px;margin-bottom:16px}
+  .case h3{font-size:21px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
+  .case .quote{font-size:15.5px;color:var(--ink);line-height:1.6;margin:14px 0 18px}
+  .case .who{font-size:13px;color:var(--soft);font-weight:600}
+  .case .result{display:flex;gap:16px;margin-top:20px;padding-top:18px;border-top:1px dashed var(--border)}
+  .case .result .r .rn{font-size:24px;font-weight:900;letter-spacing:-.5px}
+  .case .result .r .rl{font-size:11.5px;color:var(--mid);font-weight:600}
+
+  /* business ROI */
+  .roi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:30px}
+  @media(max-width:840px){.roi-grid{grid-template-columns:1fr}}
+  .roi{border:1px solid var(--border);border-radius:var(--r);padding:26px;transition:transform .15s,box-shadow .15s;background:#fff}
+  .roi:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .roi .ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:22px;margin-bottom:16px;background:var(--washLime)}
+  .roi h3{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  .roi p{font-size:14px;color:var(--mid);margin-top:7px;line-height:1.55}
+  .founder{background:var(--grad);color:#fff;border-radius:var(--r);padding:34px 36px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;box-shadow:var(--shadowLg)}
+  .founder h3{font-size:23px;font-weight:850;letter-spacing:-.6px}
+  .founder p{font-size:14.5px;color:rgba(255,255,255,.85);margin-top:6px;max-width:560px}
+
+  /* pricing justification */
+  .price-wrap{display:grid;grid-template-columns:0.85fr 1.15fr;gap:40px;align-items:center}
+  @media(max-width:820px){.price-wrap{grid-template-columns:1fr;gap:28px}}
+  .price-card{border:1.5px solid var(--border);border-radius:24px;padding:38px;text-align:center;box-shadow:var(--shadowLg);position:relative;overflow:hidden}
+  .price-card::before{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:var(--grad)}
+  .price-card .amt{font-size:60px;font-weight:900;letter-spacing:-2.5px;line-height:1}
+  .price-card .per{font-size:15px;color:var(--soft);font-weight:600}
+  .price-card .sub{font-size:13.5px;color:var(--mid);margin:14px 0 22px;line-height:1.5}
+  .worth li{display:flex;gap:13px;align-items:flex-start;margin-bottom:16px}
+  .worth li .ck{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--washLime);display:grid;place-items:center;color:var(--green);font-weight:800;font-size:13px;margin-top:1px}
+  .worth li .body{font-size:15px;color:var(--ink);line-height:1.5}
+  .worth li .body b{font-weight:800}
+  .worth li .body span{color:var(--mid)}
+
+  /* final cta */
+  .final{text-align:center;background:var(--wash);border-radius:28px;padding:70px 30px}
+  .final h2{font-size:clamp(2rem,4.5vw,3.2rem);font-weight:900;letter-spacing:-1.5px;line-height:1.05}
+  .final p{font-size:18px;color:var(--mid);margin:18px auto 0;max-width:560px}
+
+  footer{border-top:1px solid var(--border);padding:40px 0;margin-top:30px}
+  .foot-in{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .foot-in .small{font-size:12.5px;color:var(--soft)}
+  .foot-links{display:flex;gap:22px}
+  .foot-links a{font-size:13px;color:var(--mid);font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="wrap nav-in">
+    <div class="brand"><span class="mark"><img src="/logo.png" alt="DollarVote"></span> Dollar<span class="grad-text">Vote</span></div>
+    <div class="nav-links">
+      <a href="#dollar">The Dollar</a>
+      <a href="#consumers">For Shoppers</a>
+      <a href="#business">For Business</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/" class="btn btn-grad btn-sm">Open the App →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap">
+    <div class="pill"><span class="dot"></span> A Delaware Public Benefit Corporation</div>
+    <h1>Every person's truth<br>lies within their <span class="grad-text">dollar.</span></h1>
+    <p class="lede">What you choose to spend it on decides which businesses thrive — and which disappear. DollarVote shows you exactly where your money travels, so every purchase becomes a vote you cast on purpose.</p>
+    <div class="cta-row">
+      <a href="/" class="btn btn-grad btn-lg">Find verified local businesses</a>
+      <a href="#business" class="btn btn-out btn-lg">I own a business →</a>
+    </div>
+    <div class="micro">No credit card to explore · Cancel anytime · Built for community, by charter</div>
+
+    <div class="ribbon">
+      <div class="cell"><div class="n grad-text">$0.43</div><div class="l">of every $1 stays local at a chain</div></div>
+      <div class="cell"><div class="n grad-text">$0.68+</div><div class="l">stays local at a DollarVote business</div></div>
+      <div class="cell"><div class="n grad-text">5–10×</div><div class="l">future exchanges each local dollar fuels</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- THE JOURNEY OF A DOLLAR -->
+<section id="dollar">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Where your dollar actually goes</div>
+      <h2>A dollar doesn't stop when you spend it.</h2>
+      <p>Most people think a purchase ends at the register. It doesn't. Your dollar keeps moving — paying wages, buying supplies, funding the next paycheck. The question is simply: <strong>does it keep circulating in your community, or does it leave the moment you hand it over?</strong></p>
+    </div>
+
+    <div class="journey">
+      <div class="flow">
+        <div class="node"><div class="ic">🛍️</div><div class="t">You spend $10</div><div class="s">at a local shop</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="ic">👩‍🍳</div><div class="t">Wages & local suppliers</div><div class="s">~$6.80 stays nearby</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="ic">🔁</div><div class="t">Re-spent locally</div><div class="s">again, and again</div></div>
+      </div>
+      <div class="multiplier">
+        <div class="big grad-text">5–10×</div>
+        <div class="txt">Every local dollar is re-spent <b>five to ten times</b> within the same community before it finally leaves. Spend it at a chain and most of it exits on day one. <b>Educated spending compounds</b> — like interest, but for the place you live.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMOCRACY BAND -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="band">
+      <div class="inner">
+        <div class="eyebrow" style="color:var(--limeLt)">The power we forgot we had</div>
+        <h2>This is how <span class="we">"We the People"</span><br>was always meant to work.</h2>
+        <p>You don't only vote once a year at a ballot box. You vote every single day — with your dollars. Pooled together, those choices are the most direct democratic power we have: the power to decide which values, which wages, and which neighborhoods get to thrive. DollarVote simply makes that power <strong style="color:#fff">visible, informed, and intentional</strong> — so a better, more democratic union is built one honest purchase at a time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONSUMERS / CASE STUDIES -->
+<section id="consumers">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">For shoppers</div>
+      <h2>Real people. Real shifts. Same budget.</h2>
+      <p>You don't have to spend more — you just have to spend <em>aware</em>. Here's what changed when shoppers could finally see where their money landed.</p>
+    </div>
+
+    <div class="cards2">
+      <div class="case">
+        <span class="tag">Case study · Detroit</span>
+        <h3>Maya redirected her routine — not her budget.</h3>
+        <div class="quote">"I wasn't spending a dollar more. I just swapped my chain coffee and grocery runs for verified local spots the app showed me. In one month DollarVote told me I'd kept <b>$284 inside Detroit</b> — money that used to vanish to headquarters two states away."</div>
+        <div class="who">Maya R. — teacher & everyday shopper</div>
+        <div class="result">
+          <div class="r"><div class="rn grad-text">$284</div><div class="rl">kept local / month</div></div>
+          <div class="r"><div class="rn grad-text">68%</div><div class="rl">of spend stayed local</div></div>
+          <div class="r"><div class="rn grad-text">$0</div><div class="rl">extra spent</div></div>
+        </div>
+      </div>
+
+      <div class="case">
+        <span class="tag">Case study · neighborhood block</span>
+        <h3>One street, pointed in the same direction.</h3>
+        <div class="quote">"Forty of us started using DollarVote to find businesses that pay living wages. Within a season, two shops we championed hired locally and a third opened. We could literally watch our dollars build the block — <b>the urgency hit when we saw what we'd been funding by accident.</b>"</div>
+        <div class="who">Eastside neighbors' group</div>
+        <div class="result">
+          <div class="r"><div class="rn grad-text">3</div><div class="rl">local jobs created</div></div>
+          <div class="r"><div class="rn grad-text">1</div><div class="rl">new shop opened</div></div>
+          <div class="r"><div class="rn grad-text">90 days</div><div class="rl">to visible impact</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:40px">
+      <a href="/" class="btn btn-ink btn-lg">Start finding businesses near you →</a>
+      <div class="micro" style="margin-top:14px;color:var(--soft);font-size:13px">The map is free to browse. Begin today — every week of "spending blind" is impact you can't get back.</div>
+    </div>
+  </div>
+</section>
+
+<!-- BUSINESS -->
+<section id="business" style="background:var(--wash)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">For business owners</div>
+      <h2>Stop competing with Amazon on price.<br>Start competing on community.</h2>
+      <p>207 million Americans actively seek values-aligned businesses. DollarVote hands you a verified way to prove yours — and the shoppers who are already looking for exactly what you do.</p>
+    </div>
+
+    <div class="roi-grid">
+      <div class="roi">
+        <div class="ic">📈</div>
+        <h3>+34% new customers</h3>
+        <p>Verified businesses see an average lift in new-customer visits within their first 60 days — shoppers actively filter the map for your badge.</p>
+      </div>
+      <div class="roi">
+        <div class="ic">💳</div>
+        <h3>78% will pay more</h3>
+        <p>Most consumers will choose — and pay a premium for — a business they can verify lives its values. Your DollarVote score justifies your pricing.</p>
+      </div>
+      <div class="roi">
+        <div class="ic">🔒</div>
+        <h3>Loyalty you can't buy</h3>
+        <p>A transparent "where your dollar goes" profile builds the kind of repeat, referral-driven customer base that paid ads simply cannot manufacture.</p>
+      </div>
+      <div class="roi">
+        <div class="ic">🗺️</div>
+        <h3>Priority placement</h3>
+        <p>Rank at the top of the map and category pages in your neighborhood while the directory is still uncrowded — first-mover visibility compounds.</p>
+      </div>
+      <div class="roi">
+        <div class="ic">🏆</div>
+        <h3>Own your category now</h3>
+        <p>Early adopters define the local benchmark. Be "the verified one" on your street before a competitor claims that story.</p>
+      </div>
+      <div class="roi">
+        <div class="ic">📲</div>
+        <h3>Free QR scorecard</h3>
+        <p>Print it, post it, share it. Turn your verified score into in-store proof and social content that markets you on autopilot.</p>
+      </div>
+    </div>
+
+    <div class="founder">
+      <div>
+        <h3>Founder Cohort — free forever</h3>
+        <p>Join now and lock in founding-member status: a free verified profile, priority placement, and a permanent badge that tells your community you were first. The ROI of being early isn't a discount — it's the customers and reputation your competitors will spend years trying to catch.</p>
+      </div>
+      <a href="/" class="btn btn-out btn-lg" style="background:#fff">Get your free score →</a>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING JUSTIFICATION -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">For shoppers · membership</div>
+      <h2>Why $4.99 a month is the highest-ROI dollar you'll spend.</h2>
+      <p>Less than a single chain coffee — for a tool that redirects hundreds of your existing dollars toward the community you actually live in.</p>
+    </div>
+
+    <div class="price-wrap">
+      <div class="price-card">
+        <div class="amt grad-text">$4.99</div>
+        <div class="per">per month</div>
+        <div class="sub">Full access to the verified map, dollar-impact tracking, and your personal local-impact dashboard.</div>
+        <a href="/" class="btn btn-grad btn-lg" style="width:100%;justify-content:center">Become a member</a>
+        <div class="micro" style="margin-top:12px;color:var(--soft);font-size:12px">Cancel anytime · Browsing the map stays free</div>
+      </div>
+
+      <ul class="worth">
+        <li><span class="ck">✓</span><span class="body"><b>It pays for itself ~57× over.</b> <span>If awareness redirects even $284/month into your local economy (like Maya did), that's a 5,600% return on a $4.99 membership — at zero extra spending.</span></span></li>
+        <li><span class="ck">✓</span><span class="body"><b>Cheaper than one coffee.</b> <span>$4.99 is roughly a single café latte. You're trading one drink for a month of knowing the truth behind every purchase you make.</span></span></li>
+        <li><span class="ck">✓</span><span class="body"><b>The 5–10× multiplier works for you.</b> <span>Every dollar you consciously keep local is re-spent 5–10 times nearby. Your $4.99 quietly leverages hundreds of downstream dollars.</span></span></li>
+        <li><span class="ck">✓</span><span class="body"><b>You fund the mission, not a billionaire.</b> <span>As a Public Benefit Corporation, your membership underwrites verification and transparency — keeping the platform honest and independent.</span></span></li>
+        <li><span class="ck">✓</span><span class="body"><b>Your vote, amplified.</b> <span>Membership turns scattered purchases into measurable, collective democratic power — the impact of "we the people," made visible.</span></span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section style="padding-top:20px">
+  <div class="wrap">
+    <div class="final">
+      <div class="eyebrow">Your dollar is already voting. Make it count.</div>
+      <h2>Spend like the future<br>depends on it.</h2>
+      <p>Because it does. Find verified local businesses today, or put your own on the map.</p>
+      <div class="cta-row" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px">
+        <a href="/" class="btn btn-grad btn-lg">Find businesses near you</a>
+        <a href="#business" class="btn btn-ink btn-lg">List my business free</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap foot-in">
+    <div class="brand"><span class="mark"><img src="/logo.png" alt="DollarVote"></span> Dollar<span class="grad-text">Vote</span></div>
+    <div class="foot-links">
+      <a href="#dollar">The Dollar</a>
+      <a href="#consumers">For Shoppers</a>
+      <a href="#business">For Business</a>
+      <a href="/DollarVote_Terms_and_Privacy.docx" target="_blank">Terms & Privacy</a>
+    </div>
+    <div class="small">© 2026 DollarVote PBC · Every dollar is a vote.</div>
+  </div>
+</footer>
+
+</body>
+</html>
