@@ -13,6 +13,13 @@ yarn-error.log*
 STRIPE_SECRETS.local.txt
 .vercel
 
+# Sensitive business / legal documents — never commit
+*.pdf
+*.pages
+*.numbers
+*.docx
+supabase/.temp/
+
 # Local Claude Code settings (may contain command history with secrets)
 .claude/
 
