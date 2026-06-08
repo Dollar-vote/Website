@@ -84,6 +84,92 @@ const SAMPLE_BIZ = [
   { id:6, name:"Detroit Fix-It Co.",      cat:"Home Svc",   score:79, loc:31, sus:23, trn:25, hood:"East English Vil",verified:false, emoji:"🔧", local:7.10, distance:"2.1 mi" },
 ];
 
+// ─────────────────────────────────────────────
+// LOCATION — detect the user's area (geolocation), scoped to North America.
+// ─────────────────────────────────────────────
+// Rough North America bounding box (lat/lng). Outside this → treated as "unsupported region".
+const NA_BOUNDS = { latMin: 14, latMax: 72, lngMin: -169, lngMax: -52 };
+function inNorthAmerica(lat, lng) {
+  return lat >= NA_BOUNDS.latMin && lat <= NA_BOUNDS.latMax && lng >= NA_BOUNDS.lngMin && lng <= NA_BOUNDS.lngMax;
+}
+// Distance between two points in miles (haversine).
+function milesBetween(la1, lo1, la2, lo2) {
+  const R = 3958.8, toR = Math.PI / 180;
+  const dLa = (la2 - la1) * toR, dLo = (lo2 - lo1) * toR;
+  const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * toR) * Math.cos(la2 * toR) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// useGeo — asks the browser for location, reverse-geocodes a city label via Mapbox.
+// phases: "prompt" (asking) | "ready" (have coords) | "denied" (need manual entry) | "outside" (not in NA)
+function useGeo() {
+  const [geo, setGeo] = useState({ phase: "prompt", lat: null, lng: null, label: "" });
+
+  const resolveLabel = async (lat, lng) => {
+    let label = "Your area";
+    try {
+      if (MAPBOX_TOKEN) {
+        const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=place,region&access_token=${MAPBOX_TOKEN}`);
+        const j = await r.json();
+        const place = j.features?.find(f => f.place_type?.includes("place"));
+        const region = j.features?.find(f => f.place_type?.includes("region"));
+        const short = region?.properties?.short_code?.split("-")?.[1];
+        label = [place?.text, short || region?.text].filter(Boolean).join(", ") || label;
+      }
+    } catch { /* keep default */ }
+    return label;
+  };
+
+  const useCoords = async (lat, lng) => {
+    if (!inNorthAmerica(lat, lng)) { setGeo({ phase: "outside", lat, lng, label: "Outside North America" }); return; }
+    const label = await resolveLabel(lat, lng);
+    setGeo({ phase: "ready", lat, lng, label });
+  };
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) { setGeo(g => ({ ...g, phase: "denied" })); return; }
+    setGeo(g => ({ ...g, phase: "prompt" }));
+    navigator.geolocation.getCurrentPosition(
+      (pos) => useCoords(pos.coords.latitude, pos.coords.longitude),
+      () => setGeo(g => ({ ...g, phase: "denied" })),
+      { timeout: 8000, maximumAge: 600000 },
+    );
+  };
+
+  // Manual fallback: user types a ZIP or city → forward-geocode it.
+  const setManual = async (text) => {
+    if (!text || !MAPBOX_TOKEN) return;
+    try {
+      const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?country=us,ca,mx&types=place,postcode,region&limit=1&access_token=${MAPBOX_TOKEN}`);
+      const j = await r.json();
+      const f = j.features?.[0];
+      if (f) { await useCoords(f.center[1], f.center[0]); }
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => { requestLocation(); }, []); // eslint-disable-line
+
+  return { geo, requestLocation, setManual };
+}
+
+// Opens turn-by-turn directions to a business in the user's map app.
+// Uses precise coordinates when available; otherwise searches by name + area.
+function openDirections(biz) {
+  let url;
+  if (biz && biz.lat != null && biz.lng != null) {
+    const label = encodeURIComponent(biz.name || "Destination");
+    url = `https://www.google.com/maps/dir/?api=1&destination=${biz.lat},${biz.lng}&destination_place_id=&travelmode=driving&query=${label}`;
+  } else if (biz && biz.name) {
+    const q = encodeURIComponent(`${biz.name} ${biz.hood || ""} ${biz.city || ""}`.trim());
+    url = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  } else {
+    return;
+  }
+  // window.open can be blocked; fall back to navigating the current tab.
+  const w = window.open(url, "_blank", "noopener,noreferrer");
+  if (!w) window.location.href = url;
+}
+
 // Map a database row (snake_case columns) to the shape the UI components expect.
 function rowToBiz(r) {
   return {
@@ -270,6 +356,80 @@ function PhoneFrame({ children }) {
 // CONSUMER SCREENS
 // ═════════════════════════════════════════════════════════
 
+// SCREEN — Shopper manifesto (the "why this matters / why now" pitch after tapping Shopper)
+function ShopperWelcomeScreen({ go = () => {}, back = () => {} }) {
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, overflow: "hidden" }}>
+      {/* Gradient hero */}
+      <div style={{ background: GRAD, color: C.white, padding: "18px 22px 22px", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+        <div style={{ position: "absolute", right: -30, top: -30, fontSize: 130, opacity: 0.08 }}>🗳️</div>
+        <span onClick={() => back()} style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", cursor: "pointer" }}>← Back</span>
+        <div style={{ marginTop: 14 }}>
+          <Tag color={C.white} bg="rgba(255,255,255,0.18)" outline>FOR SHOPPERS · A MOVEMENT</Tag>
+          <div style={{ fontFamily: F.serif, fontSize: 27, fontWeight: 700, lineHeight: 1.1, marginTop: 10 }}>
+            You already vote<br/>every single day.
+          </div>
+          <div style={{ fontFamily: F.body, fontSize: 13, color: "rgba(255,255,255,0.9)", lineHeight: 1.6, marginTop: 8 }}>
+            Not at a ballot box — at the register. Every dollar you spend is a vote for the kind of business, wages, and community you want to exist. Most people cast those votes <strong>blind.</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrolling pitch */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px 14px" }}>
+        {/* The shift / trend */}
+        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.teal, letterSpacing: "0.12em", fontWeight: 700, marginBottom: 10 }}>THE SHIFT ALREADY HAPPENING</div>
+        {[
+          ["207M", "Americans now actively choose businesses that match their values", C.blue],
+          ["82%", "say it matters where a company stands — and they spend accordingly", C.teal],
+          ["3×", "faster growth for values-driven local businesses vs. faceless chains", C.lime],
+        ].map(([n, t, col]) => (
+          <div key={t} style={{ display: "flex", gap: 12, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontFamily: F.serif, fontSize: 24, fontWeight: 700, color: col, minWidth: 56 }}>{n}</div>
+            <div style={{ fontFamily: F.body, fontSize: 12, color: C.ink, lineHeight: 1.4 }}>{t}</div>
+          </div>
+        ))}
+
+        {/* Why subscribe */}
+        <div style={{ ...glass(0.6), borderRadius: 16, padding: 16, margin: "18px 0 14px" }}>
+          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 8 }}>Why members go further</div>
+          {[
+            ["🔎", "Find verified businesses", "Every score is independently verified — no greenwashing, no guessing."],
+            ["💚", "See your real impact", "Watch exactly how much of your spending stays in your community, month over month."],
+            ["📈", "Make it count", "Your dollars, pooled with thousands of others, become measurable democratic power."],
+          ].map(([ic, h, d]) => (
+            <div key={h} style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "7px 0" }}>
+              <span style={{ fontSize: 18 }}>{ic}</span>
+              <div>
+                <div style={{ fontFamily: F.body, fontSize: 12.5, fontWeight: 700, color: C.ink }}>{h}</div>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: C.mid, lineHeight: 1.45, marginTop: 1 }}>{d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Urgency */}
+        <div style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 16 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 6 }}>⏳ WHY NOW</div>
+          <div style={{ fontFamily: F.body, fontSize: 12.5, lineHeight: 1.6, color: "rgba(255,255,255,0.9)" }}>
+            Every week you spend "blind" is impact you can't get back. The businesses that earn your dollars today are the ones that survive tomorrow. <strong style={{ color: C.white }}>Be early. Shape the map.</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky CTAs */}
+      <div style={{ padding: "12px 22px", borderTop: `1px solid ${C.border}`, background: C.white, flexShrink: 0 }}>
+        <button onClick={() => go("shopperJoin")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 700, padding: "15px", border: "none", borderRadius: 13, cursor: "pointer", marginBottom: 8 }}>
+          Join the movement · $4.99/mo →
+        </button>
+        <button onClick={() => go("consumerHome")} style={{ width: "100%", background: C.white, color: C.mid, fontFamily: F.body, fontSize: 12.5, fontWeight: 600, padding: "11px", border: `1px solid ${C.border}`, borderRadius: 11, cursor: "pointer" }}>
+          Explore the map free first
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // SCREEN 1 — Welcome / Path Selector (the "Who Are You?" moment)
 function WelcomeScreen({ go = () => {} }) {
   return (
@@ -295,7 +455,7 @@ function WelcomeScreen({ go = () => {} }) {
 
         {/* Path buttons */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button onClick={() => go("consumerHome")} style={{ background: C.white, color: C.blue, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "16px", border: "none", borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => go("shopperWelcome")} style={{ background: C.white, color: C.blue, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "16px", border: "none", borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 24 }}>🛍</span>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 700 }}>I'm a Shopper</div>
@@ -313,6 +473,12 @@ function WelcomeScreen({ go = () => {} }) {
           </button>
         </div>
 
+        {/* Returning user — go straight to sign-in */}
+        <div style={{ textAlign: "center", marginTop: 18, fontFamily: F.body, fontSize: 12.5, color: "rgba(255,255,255,0.8)" }}>
+          Already a member?{" "}
+          <span onClick={() => go("auth")} style={{ color: C.white, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Log in</span>
+        </div>
+
         {/* PBC tag */}
         <div style={{ position: "absolute", bottom: -30, left: 0, right: 0, textAlign: "center" }}>
           <div style={{ fontFamily: F.mono, fontSize: 8.5, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em" }}>DELAWARE PUBLIC BENEFIT CORP</div>
@@ -323,7 +489,7 @@ function WelcomeScreen({ go = () => {} }) {
 }
 
 // SCREEN 2 — Consumer Home (Upside-inspired map + offers feed)
-function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample" }) {
+function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample", geo = {} }) {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, overflow: "hidden", position: "relative" }}>
       {/* Top: location + greeting */}
@@ -331,7 +497,7 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
         <div>
           <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.12em" }}>YOUR LOCATION</div>
           <div style={{ fontFamily: F.body, fontSize: 14, fontWeight: 700, color: C.ink, display: "flex", alignItems: "center", gap: 4 }}>
-            📍 Detroit, MI <span style={{ color: C.soft, fontSize: 10 }}>▾</span>
+            📍 {geo.label || (geo.phase === "prompt" ? "Locating…" : "Set your area")} <span style={{ color: C.soft, fontSize: 10 }}>▾</span>
           </div>
         </div>
         <div style={{ width: 38, height: 38, borderRadius: "50%", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🔔</div>
@@ -383,7 +549,7 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
       {/* Business cards - Upside-style horizontal scroll */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px" }}>
         {biz.slice(0, 4).map(b => (
-          <div key={b.id} onClick={() => go("profile")} style={{ ...glass(0.55), borderRadius: 14, padding: 12, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
+          <div key={b.id} onClick={() => go("profile", b)} style={{ ...glass(0.55), borderRadius: 14, padding: 12, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
             <div style={{ width: 50, height: 50, borderRadius: 12, background: C.ltBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{b.emoji}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
@@ -406,8 +572,8 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
   );
 }
 
-// Real interactive Mapbox map — renders only when a token + coordinates exist.
-function MapboxMap({ businesses, selectedId, onSelect }) {
+// Real interactive Mapbox map — centers on the user's location; plots nearby businesses.
+function MapboxMap({ businesses, selectedId, onSelect, userLat, userLng }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -415,22 +581,38 @@ function MapboxMap({ businesses, selectedId, onSelect }) {
   // Only businesses that have real coordinates can be plotted.
   const pts = businesses.filter(b => b.lat != null && b.lng != null);
 
-  // Create the map once.
+  // Create the map once — centered on the user when we have their location.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    const center = pts.length
-      ? [pts.reduce((s, b) => s + Number(b.lng), 0) / pts.length,
-         pts.reduce((s, b) => s + Number(b.lat), 0) / pts.length]
-      : [-83.05, 42.35]; // Detroit fallback
+    const center = (userLat != null && userLng != null)
+      ? [userLng, userLat]
+      : pts.length
+        ? [pts.reduce((s, b) => s + Number(b.lng), 0) / pts.length,
+           pts.reduce((s, b) => s + Number(b.lat), 0) / pts.length]
+        : [-98.5, 39.8]; // center of North America fallback
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: "mapbox://styles/mapbox/streets-v12",
       center,
-      zoom: 11.2,
+      zoom: 12,
       attributionControl: false,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    // A "you are here" dot at the user's real location.
+    if (userLat != null && userLng != null) {
+      const dot = document.createElement("div");
+      dot.style.cssText = `width:16px;height:16px;border-radius:50%;background:${C.blue};border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,58,143,0.2);`;
+      new mapboxgl.Marker({ element: dot }).setLngLat([userLng, userLat]).addTo(map);
+    }
+    map.on("load", () => {
+      if (pts.length > 1) {
+        const b = new mapboxgl.LngLatBounds();
+        pts.forEach(p => b.extend([Number(p.lng), Number(p.lat)]));
+        if (userLat != null && userLng != null) b.extend([userLng, userLat]);
+        map.fitBounds(b, { padding: 70, maxZoom: 14, duration: 0 });
+      }
+    });
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
   }, []); // eslint-disable-line
@@ -459,34 +641,87 @@ function MapboxMap({ businesses, selectedId, onSelect }) {
   return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
 }
 
-// SCREEN 3 — Map View. Real Mapbox map when a token is configured; mockup otherwise.
-function MapScreen({ go = () => {}, biz = SAMPLE_BIZ }) {
-  const withCoords = biz.filter(b => b.lat != null && b.lng != null);
-  const liveMap = !!MAPBOX_TOKEN && withCoords.length > 0;
-  // The business shown in the bottom sheet — defaults to the top-scored one.
+// SCREEN 3 — Map View. Centers on the user's location; shows businesses near them.
+const NEARBY_RADIUS_MI = 50; // "immediate area" radius
+function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { phase: "ready" }, requestLocation = () => {}, setManual = () => {} }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("All");
+  const [manualText, setManualText] = useState("");
+
+  const hasLoc = geo.lat != null && geo.lng != null;
+
+  // Add a real distance to each business when we know the user's location.
+  const withDist = biz.map(b => {
+    if (hasLoc && b.lat != null && b.lng != null) {
+      const mi = milesBetween(geo.lat, geo.lng, Number(b.lat), Number(b.lng));
+      return { ...b, _mi: mi, distance: mi < 0.1 ? "here" : `${mi.toFixed(1)} mi` };
+    }
+    return { ...b, _mi: null };
+  });
+
+  // Apply search + filter chips + proximity (only show businesses in the immediate area).
+  const filtered = withDist.filter(b => {
+    const q = query.trim().toLowerCase();
+    if (q && !(`${b.name} ${b.cat || ""} ${b.hood || ""}`.toLowerCase().includes(q))) return false;
+    if (filter === "90+" && b.score < 90) return false;
+    if (filter === "75+" && b.score < 75) return false;
+    if (filter === "Verified" && !b.verified) return false;
+    if (hasLoc && b._mi != null && b._mi > NEARBY_RADIUS_MI) return false; // proximity scope
+    return true;
+  }).sort((a, b) => (a._mi ?? 1e9) - (b._mi ?? 1e9));
+
+  const withCoords = filtered.filter(b => b.lat != null && b.lng != null);
+  const liveMap = !!MAPBOX_TOKEN && (withCoords.length > 0 || hasLoc);
   const [selected, setSelected] = useState(null);
-  const sel = selected || biz[0] || SAMPLE_BIZ[0];
+  const sel = (selected && filtered.some(b => b.id === selected.id) ? selected : filtered[0]) || null;
+  const areaLabel = geo.label || "Your area";
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, position: "relative" }}>
       {/* Search bar overlay */}
-      <div style={{ position: "absolute", top: 44, left: 14, right: 14, zIndex: 10 }}>
-        <div style={{ ...glass(0.7), borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>🔍</span>
-          <span style={{ fontFamily: F.body, fontSize: 12.5, color: C.ink, flex: 1, fontWeight: 600 }}>Detroit, MI</span>
-          <span style={{ fontFamily: F.mono, fontSize: 9, color: C.teal, fontWeight: 700, letterSpacing: "0.06em" }}>{(liveMap ? withCoords.length : biz.length)} RESULTS</span>
+      <div style={{ position: "absolute", top: 12, left: 14, right: 14, zIndex: 10 }}>
+        <div style={{ ...glass(0.85), borderRadius: 12, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span onClick={() => back()} style={{ fontSize: 17, cursor: "pointer", color: C.ink, lineHeight: 1 }} title="Back">←</span>
+          <span style={{ fontSize: 14 }}>📍</span>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={`Search near ${areaLabel}…`}
+            style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontFamily: F.body, fontSize: 12.5, color: C.ink, fontWeight: 600, minWidth: 0 }}
+          />
+          {query
+            ? <span onClick={() => setQuery("")} style={{ fontSize: 13, color: C.soft, cursor: "pointer" }}>✕</span>
+            : <span style={{ fontFamily: F.mono, fontSize: 9, color: C.teal, fontWeight: 700, letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{filtered.length} NEAR</span>}
+        </div>
+        {/* Location status line */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontFamily: F.mono, fontSize: 8.5, letterSpacing: "0.08em" }}>
+          {geo.phase === "ready" && <span style={{ color: C.green, fontWeight: 700 }}>● {areaLabel.toUpperCase()}</span>}
+          {geo.phase === "prompt" && <span style={{ color: C.soft }}>◌ FINDING YOUR LOCATION…</span>}
+          {geo.phase === "outside" && <span style={{ color: C.amber, fontWeight: 700 }}>⚠ NORTH AMERICA ONLY · SET A US/CA/MX AREA BELOW</span>}
+          {geo.phase === "denied" && <span style={{ color: C.soft }} onClick={() => requestLocation()}>📍 ENABLE LOCATION</span>}
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
-          {["All", "90+", "75+", "Verified", "☕", "🍽️"].map((f, i) => (
-            <div key={f} style={{ background: i===0 ? C.ink : C.white, color: i===0 ? C.white : C.mid, padding: "5px 11px", borderRadius: 50, fontFamily: F.body, fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>{f}</div>
-          ))}
+          {["All", "90+", "75+", "Verified"].map((f) => {
+            const on = filter === f;
+            return (
+              <div key={f} onClick={() => setFilter(f)} style={{ background: on ? C.ink : C.white, color: on ? C.white : C.mid, padding: "5px 11px", borderRadius: 50, fontFamily: F.body, fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", cursor: "pointer" }}>{f}</div>
+            );
+          })}
         </div>
+        {/* Manual area entry when location is denied or outside NA */}
+        {(geo.phase === "denied" || geo.phase === "outside") && (
+          <div style={{ ...glass(0.9), borderRadius: 12, padding: "8px 10px", marginTop: 8, display: "flex", gap: 6 }}>
+            <input value={manualText} onChange={e => setManualText(e.target.value)} placeholder="Enter your ZIP or city (US · CA · MX)"
+              style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontFamily: F.body, fontSize: 12, color: C.ink, fontWeight: 600 }} />
+            <button onClick={() => setManual(manualText)} style={{ background: GRAD, color: C.white, border: "none", borderRadius: 8, fontFamily: F.body, fontSize: 11, fontWeight: 700, padding: "5px 12px", cursor: "pointer" }}>Go</button>
+          </div>
+        )}
       </div>
 
       {/* Map area — real Mapbox, or the styled mockup as a fallback */}
       <div style={{ flex: 1, background: "#E8EDF5", position: "relative", overflow: "hidden" }}>
         {liveMap ? (
-          <MapboxMap businesses={biz} selectedId={sel?.id} onSelect={setSelected} />
+          <MapboxMap key={(hasLoc ? `${geo.lat.toFixed(3)},${geo.lng.toFixed(3)}` : "noloc") + "|" + withCoords.map(b => b.id).join(",")} businesses={filtered} selectedId={sel?.id} onSelect={setSelected} userLat={hasLoc ? geo.lat : null} userLng={hasLoc ? geo.lng : null} />
         ) : (
           <>
             {/* Mockup fallback (shown until a Mapbox token is added) */}
@@ -501,7 +736,8 @@ function MapScreen({ go = () => {}, biz = SAMPLE_BIZ }) {
               { x: 22, y: 30 }, { x: 48, y: 24 }, { x: 38, y: 50 },
               { x: 68, y: 42 }, { x: 72, y: 64 }, { x: 18, y: 60 },
             ].map((m, i) => {
-              const b = biz[i] || SAMPLE_BIZ[i];
+              const b = filtered[i];
+              if (!b) return null;
               return (
                 <div key={i} onClick={() => setSelected(b)} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", cursor: "pointer" }}>
                   <div style={{ background: C.white, borderRadius: 10, padding: "5px 8px 4px", border: `2px solid ${scoreColor(b.score)}`, boxShadow: "0 4px 8px rgba(0,0,0,0.2)", minWidth: 38, textAlign: "center", position: "relative" }}>
@@ -517,33 +753,51 @@ function MapScreen({ go = () => {}, biz = SAMPLE_BIZ }) {
         )}
       </div>
 
-      {/* Bottom sheet — selected business preview (Upside style) */}
+      {/* Bottom sheet — selected business, or an honest empty state when none nearby */}
       <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(24px) saturate(180%)", WebkitBackdropFilter: "blur(24px) saturate(180%)", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: "14px 18px 12px", boxShadow: "0 -4px 30px rgba(15,21,37,0.12)", position: "relative" }}>
         <div style={{ width: 40, height: 4, background: C.border, borderRadius: 2, margin: "0 auto 12px" }} />
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.ltBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{sel.emoji || "🏬"}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.name}</div>
-            <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{sel.hood || sel.cat}{sel.distance ? ` · ${sel.distance}` : ""}</div>
-            <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
+        {sel ? (
+          <>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: C.ltBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{sel.emoji || "🏬"}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.name}</div>
+                <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{sel.hood || sel.cat}{sel.distance ? ` · ${sel.distance}` : ""}</div>
+                <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
+              </div>
+              <ScoreBadge score={sel.score} size={42} />
+            </div>
+            <div style={{ background: C.ltLime, borderRadius: 10, padding: "8px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14 }}>💚</span>
+              <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, flex: 1 }}><strong>${(sel.local || 0).toFixed(2)} of every $10 stays local</strong></span>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => go("profile", sel)} style={{ flex: 1, background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px", border: "none", borderRadius: 10, cursor: "pointer" }}>View Profile</button>
+              <button onClick={() => openDirections(sel)} style={{ flex: 1, background: C.bg, color: C.ink, fontFamily: F.body, fontSize: 12, fontWeight: 600, padding: "10px", border: "none", borderRadius: 10, cursor: "pointer" }}>Directions</button>
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: "6px 4px 8px" }}>
+            <div style={{ fontSize: 30, marginBottom: 6 }}>🌱</div>
+            <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: C.ink }}>No verified businesses near {areaLabel} yet</div>
+            <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.5, margin: "6px 0 12px" }}>
+              We're just getting started in your area. Be the first to put a values-driven business on the map.
+            </div>
+            <button onClick={() => go("bizWelcome")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "11px 18px", border: "none", borderRadius: 11, cursor: "pointer" }}>Nominate a business →</button>
           </div>
-          <ScoreBadge score={sel.score} size={42} />
-        </div>
-        <div style={{ background: C.ltLime, borderRadius: 10, padding: "8px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>💚</span>
-          <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, flex: 1 }}><strong>${(sel.local || 0).toFixed(2)} of every $10 stays local</strong></span>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => go("profile")} style={{ flex: 1, background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px", border: "none", borderRadius: 10, cursor: "pointer" }}>View Profile</button>
-          <button style={{ flex: 1, background: C.bg, color: C.ink, fontFamily: F.body, fontSize: 12, fontWeight: 600, padding: "10px", border: "none", borderRadius: 10, cursor: "pointer" }}>Directions</button>
-        </div>
+        )}
       </div>
+
+      {/* Bottom tab bar — so users can always navigate away from the map */}
+      <ConsumerTabs active="map" go={go} />
     </div>
   );
 }
 
-// SCREEN 4 — Business Profile (after tap)
-function BusinessProfileScreen({ back = () => {} }) {
+// SCREEN 4 — Business Profile (after tap). Uses the tapped business (falls back to a sample).
+function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
+  const b = biz || SAMPLE_BIZ[0];
+  const tier = b.score >= 90 ? "Community Champion" : b.score >= 75 ? "Above & Beyond" : b.score >= 60 ? "Solid Commitment" : "Growing";
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflowY: "auto" }}>
       {/* Hero with score */}
@@ -553,19 +807,19 @@ function BusinessProfileScreen({ back = () => {} }) {
           <span style={{ fontSize: 16 }}>⋯</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>🧼</div>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>{b.emoji || "🏬"}</div>
           <div style={{ flex: 1 }}>
-            <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>✓ DOLLARVOTE VERIFIED</Tag>
-            <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, marginTop: 4, lineHeight: 1.1 }}>Maria's Soap Studio</div>
-            <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>Independent Retail · Eastern Market</div>
+            {b.verified && <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>✓ DOLLARVOTE VERIFIED</Tag>}
+            <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, marginTop: 4, lineHeight: 1.1 }}>{b.name}</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{b.cat || "Local business"}{b.hood ? ` · ${b.hood}` : ""}</div>
           </div>
         </div>
         {/* Big score */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, background: "rgba(255,255,255,0.12)", borderRadius: 14, backdropFilter: "blur(10px)" }}>
-          <ScoreBadge score={91} size={64} />
+          <ScoreBadge score={b.score} size={64} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700 }}>Community Champion</div>
-            <div style={{ fontFamily: F.mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em" }}>RENEWED FEB 2026 · NEXT FEB 2027</div>
+            <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700 }}>{tier}</div>
+            <div style={{ fontFamily: F.mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em" }}>VERIFIED · ${(b.local || 0).toFixed(2)}/$10 STAYS LOCAL</div>
           </div>
         </div>
       </div>
@@ -618,25 +872,88 @@ function BusinessProfileScreen({ back = () => {} }) {
       </div>
 
       {/* Action buttons */}
-      <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <button style={{ background: C.ink, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer" }}>📍 Get Directions</button>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={{ flex: 1, background: C.white, color: C.ink, fontFamily: F.body, fontSize: 11, fontWeight: 600, padding: "10px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" }}>⭐ Save</button>
-          <button style={{ flex: 1, background: C.white, color: C.ink, fontFamily: F.body, fontSize: 11, fontWeight: 600, padding: "10px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" }}>↗ Share</button>
-          <button style={{ flex: 1, background: C.white, color: C.ink, fontFamily: F.body, fontSize: 11, fontWeight: 600, padding: "10px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" }}>📞 Call</button>
-        </div>
-      </div>
+      <ProfileActions biz={b} />
+
+      {/* Bottom tab bar — keep navigation available */}
+      <ConsumerTabs active="map" go={go} />
     </div>
   );
 }
 
-// SCREEN 5 — My Impact (Spending tracker)
-function ImpactScreen({ go = () => {} }) {
+// Working Save / Share / Call / Directions actions for a business profile.
+function ProfileActions({ biz = {} }) {
+  const name = biz.name || "this business";
+  const phone = biz.phone || "";
+  const [saved, setSaved] = useState(false);
+  const [note, setNote] = useState("");
+  const flash = (m) => { setNote(m); setTimeout(() => setNote(""), 1800); };
+
+  const directions = () => openDirections(biz);
+  const share = async () => {
+    const data = { title: name, text: `Check out ${name} on DollarVote`, url: location.origin };
+    try {
+      if (navigator.share) { await navigator.share(data); }
+      else { await navigator.clipboard.writeText(`${data.text} — ${data.url}`); flash("Link copied ✓"); }
+    } catch { /* user cancelled */ }
+  };
+  const call = () => { if (phone) window.location.href = `tel:${phone}`; else flash("No phone number on file"); };
+  const toggleSave = () => { setSaved(s => !s); flash(saved ? "Removed from saved" : "Saved ✓"); };
+
+  const ghost = { flex: 1, background: C.white, color: C.ink, fontFamily: F.body, fontSize: 11, fontWeight: 600, padding: "10px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" };
+
+  return (
+    <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8, position: "relative" }}>
+      <button onClick={directions} style={{ background: C.ink, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer" }}>📍 Get Directions</button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={toggleSave} style={{ ...ghost, ...(saved ? { borderColor: C.lime, color: C.green, background: C.ltLime } : {}) }}>{saved ? "★ Saved" : "⭐ Save"}</button>
+        <button onClick={share} style={ghost}>↗ Share</button>
+        <button onClick={call} style={ghost}>📞 Call</button>
+      </div>
+      {note && (
+        <div style={{ position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)", background: C.ink, color: C.white, fontFamily: F.body, fontSize: 11, fontWeight: 600, padding: "7px 14px", borderRadius: 50, whiteSpace: "nowrap" }}>{note}</div>
+      )}
+    </div>
+  );
+}
+
+// SCREEN 5 — My Impact (Spending tracker) — gated behind the $4.99 shopper membership.
+function ImpactScreen({ go = () => {}, session = null, isActive = false }) {
+  // Non-members see a paywall instead of the dashboard.
+  if (!isActive) {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white }}>
+        <div style={{ height: 4, background: GRAD, flexShrink: 0 }} />
+        <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px", display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "center" }}>
+          <div style={{ fontSize: 44, marginBottom: 10 }}>💚</div>
+          <Tag color={C.teal}>MEMBERS ONLY</Tag>
+          <div style={{ fontFamily: F.serif, fontSize: 24, fontWeight: 700, color: C.ink, marginTop: 10, lineHeight: 1.15 }}>
+            See where your<br/>dollars actually go.
+          </div>
+          <div style={{ fontFamily: F.body, fontSize: 13, color: C.mid, marginTop: 10, lineHeight: 1.6 }}>
+            Your personal local-impact dashboard tracks how much of your spending stays in your community — month over month.
+          </div>
+          <div style={{ ...glass(0.6), borderRadius: 16, padding: 16, margin: "20px 0", textAlign: "left" }}>
+            {["Live dollar-impact tracking", "Your local % vs. the chain average", "Monthly streaks & community ranking"].map(f => (
+              <div key={f} style={{ display: "flex", gap: 9, alignItems: "center", padding: "5px 0", fontFamily: F.body, fontSize: 12.5, color: C.ink }}>
+                <span style={{ color: C.green, fontWeight: 800 }}>✓</span>{f}
+              </div>
+            ))}
+          </div>
+          <button onClick={() => go("shopperJoin")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 700, padding: "15px", border: "none", borderRadius: 13, cursor: "pointer" }}>
+            Join for $4.99/month →
+          </button>
+          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em", marginTop: 10 }}>CANCEL ANYTIME · BROWSING THE MAP STAYS FREE</div>
+        </div>
+        <ConsumerTabs active="impact" go={go} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
       {/* Header */}
       <div style={{ padding: "8px 18px 16px", background: C.white }}>
-        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.12em", fontWeight: 700, marginBottom: 4 }}>YOUR LOCAL IMPACT</div>
+        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.12em", fontWeight: 700, marginBottom: 4 }}>YOUR LOCAL IMPACT ✓ MEMBER</div>
         <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink }}>April 2026</div>
       </div>
 
@@ -770,6 +1087,189 @@ function useAuth() {
   }, []);
 
   return { session, ready };
+}
+
+// Loads the logged-in user's subscription row (active membership status).
+function useSubscription(session) {
+  const [sub, setSub] = useState({ phase: "loading", row: null });
+  useEffect(() => {
+    let alive = true;
+    if (!supabase || !session) { setSub({ phase: session ? "loading" : "anon", row: null }); return; }
+    const load = () => supabase
+      .from("subscriptions")
+      .select("tier, status, current_period_end")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => { if (alive) setSub({ phase: "ready", row: data || null }); });
+    load();
+    // Re-check shortly after returning from Stripe (webhook writes the row async).
+    const t = setTimeout(load, 4000);
+    return () => { alive = false; clearTimeout(t); };
+  }, [session]);
+  const isActive = sub.row?.status === "active";
+  return { ...sub, isActive };
+}
+
+const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"];
+
+// SCREEN — Shopper membership: sign up (email/pw + state/ZIP) → $4.99/mo checkout.
+function ShopperJoinScreen({ go = () => {}, back = () => {}, session = null }) {
+  const [mode, setMode] = useState("signup"); // signup | login
+  const [plan, setPlan] = useState("annual");  // monthly | annual (annual highlighted = better deal)
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [stateUS, setStateUS] = useState("");
+  const [zip, setZip] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const TERMS_VERSION = "v1.0";
+  const TERMS_URL = "/DollarVote_Terms_and_Privacy.docx";
+
+  // Saves state/ZIP for the logged-in user, then starts checkout for the chosen plan.
+  async function startCheckout(userId) {
+    if (stateUS || zip) {
+      await supabase.from("shopper_profiles").upsert({ user_id: userId, state: stateUS, zip, updated_at: new Date().toISOString() });
+    }
+    const tier = plan === "annual" ? "shopper_annual" : "shopper";
+    const { data, error } = await supabase.functions.invoke("create-checkout", {
+      body: { tier, returnUrl: window.location.origin },
+    });
+    if (error) { setMsg({ type: "err", text: "Couldn't start checkout. Please try again." }); return; }
+    if (data?.configured === false) { setMsg({ type: "err", text: "Payments aren't switched on yet." }); return; }
+    if (data?.url) { window.location.href = data.url; return; }
+    setMsg({ type: "err", text: data?.error || "Couldn't start checkout." });
+  }
+
+  async function submit() {
+    if (!supabase) { setMsg({ type: "err", text: "No database connection." }); return; }
+    if (mode === "signup") {
+      if (!email || !pw) { setMsg({ type: "err", text: "Enter an email and password." }); return; }
+      if (!stateUS || !zip) { setMsg({ type: "err", text: "Please add your state and ZIP code." }); return; }
+      if (!/^\d{5}$/.test(zip.trim())) { setMsg({ type: "err", text: "Enter a valid 5-digit ZIP code." }); return; }
+      if (!agreed) { setMsg({ type: "err", text: "Please agree to the Terms & Privacy Policy." }); return; }
+    } else if (!email || !pw) { setMsg({ type: "err", text: "Enter your email and password." }); return; }
+
+    setBusy(true); setMsg(null);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email, password: pw,
+          options: { data: { role: "shopper", state: stateUS, zip, terms_accepted: true, terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() } },
+        });
+        if (error) throw error;
+        const { data: sess, error: e2 } = await supabase.auth.signInWithPassword({ email, password: pw });
+        if (e2 || !sess?.user) { setMsg({ type: "ok", text: "Account created. Check your email to confirm, then log in to finish." }); setBusy(false); return; }
+        await startCheckout(sess.user.id);
+      } else {
+        const { data: sess, error } = await supabase.auth.signInWithPassword({ email, password: pw });
+        if (error) throw error;
+        await startCheckout(sess.user.id);
+      }
+    } catch (e) {
+      setMsg({ type: "err", text: e.message || "Something went wrong." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inp = { width: "100%", fontFamily: F.body, fontSize: 14, color: C.ink, background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", marginBottom: 10, outline: "none" };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, overflowY: "auto" }}>
+      <div style={{ height: 4, background: GRAD, flexShrink: 0 }} />
+      <div style={{ padding: "16px 22px 24px" }}>
+        <span onClick={() => back()} style={{ fontSize: 13, color: C.soft, cursor: "pointer" }}>← Back</span>
+
+        <div style={{ textAlign: "center", margin: "10px 0 14px" }}>
+          <Tag color={C.teal}>SHOPPER MEMBERSHIP</Tag>
+          <div style={{ fontFamily: F.serif, fontSize: 24, fontWeight: 700, color: C.ink, marginTop: 8, lineHeight: 1.1 }}>
+            Unlock your <span style={{ background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>local impact</span>
+          </div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, marginTop: 6, lineHeight: 1.5 }}>
+            See exactly where your dollars travel — and how much stays in your community.
+          </div>
+        </div>
+
+        {/* Plan chooser: monthly vs annual (annual = best value) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {[
+            { id: "annual", title: "Annual", price: "$19.99", per: "/year", sub: "Just $1.67/mo — save 67%", badge: "BEST VALUE" },
+            { id: "monthly", title: "Monthly", price: "$4.99", per: "/month", sub: "Billed once per month", badge: null },
+          ].map(p => {
+            const on = plan === p.id;
+            return (
+              <div key={p.id} onClick={() => setPlan(p.id)} style={{
+                position: "relative", cursor: "pointer", borderRadius: 14, padding: "12px 14px",
+                border: `2px solid ${on ? C.teal : C.border}`,
+                background: on ? "linear-gradient(180deg,rgba(26,143,160,0.06),rgba(125,200,50,0.04))" : C.white,
+                display: "flex", alignItems: "center", gap: 12,
+              }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${on ? C.teal : C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  {on && <div style={{ width: 10, height: 10, borderRadius: "50%", background: GRAD }} />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: F.body, fontSize: 13.5, fontWeight: 700, color: C.ink }}>{p.title}</span>
+                    {p.badge && <span style={{ fontFamily: F.mono, fontSize: 8, fontWeight: 800, color: C.white, background: GRAD, padding: "2px 7px", borderRadius: 50, letterSpacing: "0.06em" }}>{p.badge}</span>}
+                  </div>
+                  <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.mid, marginTop: 1 }}>{p.sub}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: on ? C.teal : C.ink }}>{p.price}</span>
+                  <span style={{ fontFamily: F.mono, fontSize: 9, color: C.soft }}>{p.per}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <input style={inp} type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
+        <input style={inp} type="password" placeholder="Password (min 6 characters)" value={pw} onChange={e => setPw(e.target.value)} />
+
+        {mode === "signup" && (
+          <div style={{ display: "flex", gap: 10 }}>
+            <select value={stateUS} onChange={e => setStateUS(e.target.value)} style={{ ...inp, flex: 1 }}>
+              <option value="">State…</option>
+              {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input style={{ ...inp, flex: 1 }} inputMode="numeric" maxLength={5} placeholder="ZIP code" value={zip} onChange={e => setZip(e.target.value.replace(/\D/g, ""))} />
+          </div>
+        )}
+
+        {mode === "signup" && (
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", background: agreed ? "rgba(125,200,50,0.08)" : C.bg, border: `1.5px solid ${agreed ? "rgba(125,200,50,0.5)" : C.border}`, borderRadius: 12, padding: "11px 13px", marginBottom: 12 }}>
+            <input type="checkbox" checked={agreed} onChange={e => { setAgreed(e.target.checked); if (e.target.checked) setMsg(null); }} style={{ width: 18, height: 18, marginTop: 1, flexShrink: 0, accentColor: C.lime, cursor: "pointer" }} />
+            <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, lineHeight: 1.5 }}>
+              I agree to DollarVote's{" "}
+              <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: C.teal, fontWeight: 700, textDecoration: "underline" }}>Terms</a>
+              {" "}&{" "}
+              <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: C.teal, fontWeight: 700, textDecoration: "underline" }}>Privacy Policy</a>.
+            </span>
+          </label>
+        )}
+
+        {msg && (
+          <div style={{ fontFamily: F.body, fontSize: 11.5, lineHeight: 1.4, borderRadius: 10, padding: "9px 12px", marginBottom: 10,
+            background: msg.type === "ok" ? "rgba(125,200,50,0.12)" : "rgba(192,57,43,0.1)", color: msg.type === "ok" ? C.green : C.red,
+            border: `1px solid ${msg.type === "ok" ? "rgba(125,200,50,0.4)" : "rgba(192,57,43,0.3)"}` }}>{msg.text}</div>
+        )}
+
+        <button onClick={submit} disabled={busy} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "14px", border: "none", borderRadius: 12, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1, marginBottom: 10 }}>
+          {busy ? "Please wait…" : (mode === "signup" ? "Continue to payment →" : "Log in & subscribe →")}
+        </button>
+        <div style={{ textAlign: "center", fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em", marginBottom: 12 }}>SECURE CHECKOUT BY STRIPE · CANCEL ANYTIME</div>
+
+        <div style={{ textAlign: "center", fontFamily: F.body, fontSize: 12, color: C.mid }}>
+          {mode === "signup" ? "Already a member? " : "New here? "}
+          <span onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setMsg(null); }} style={{ color: C.teal, fontWeight: 700, cursor: "pointer" }}>
+            {mode === "signup" ? "Log in" : "Create an account"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // SCREEN — Sign up / Log in for business owners
@@ -1033,7 +1533,15 @@ function BizWelcomeScreen({ go = () => {}, back = () => {} }) {
             Your values, <em style={{ background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>verified.</em>
           </div>
           <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, lineHeight: 1.6, marginTop: 8 }}>
-            Stop competing with Amazon on price. Start competing on community.
+            Stop competing with Amazon on price. Start competing on community — the one thing they can never copy.
+          </div>
+        </div>
+
+        {/* Urgency / trend band */}
+        <div style={{ background: C.ink, color: C.white, borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 6 }}>⏳ THE WINDOW IS NOW</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, lineHeight: 1.6, color: "rgba(255,255,255,0.9)" }}>
+            <strong style={{ color: C.white }}>207M shoppers</strong> are already choosing businesses by their values — and they're searching this map. The first verified business in each category owns that story. <strong style={{ color: C.white }}>Your competitor is reading this too.</strong>
           </div>
         </div>
 
@@ -1133,6 +1641,55 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
         {payMsg && (
           <div style={{ background: C.ltGold, border: `1px solid ${C.amber}55`, borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontFamily: F.body, fontSize: 11.5, color: C.ink, lineHeight: 1.4 }}>{payMsg}</div>
         )}
+
+        {/* ⭐ LIFETIME FOUNDER SPECIAL — the irresistible hero offer */}
+        <div style={{ position: "relative", borderRadius: 18, padding: 18, marginBottom: 16, background: C.ink, color: C.white, overflow: "hidden", boxShadow: "0 16px 40px rgba(11,21,37,0.28)", border: `1.5px solid ${C.lime}` }}>
+          <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 100% 0%, rgba(125,200,50,0.22), transparent 55%), radial-gradient(circle at 0% 100%, rgba(26,143,160,0.20), transparent 50%)" }} />
+          <div style={{ position: "absolute", right: -18, top: -18, fontSize: 96, opacity: 0.12 }}>🏆</div>
+          <div style={{ position: "relative" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: GRAD, padding: "4px 11px", borderRadius: 50, fontFamily: F.mono, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.1em" }}>
+              ⚡ FOUNDER COHORT · LIMITED
+            </div>
+            <div style={{ fontFamily: F.serif, fontSize: 27, fontWeight: 700, lineHeight: 1.05, marginTop: 10 }}>
+              Pay once. <span style={{ background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Verified for life.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8 }}>
+              <span style={{ fontFamily: F.serif, fontSize: 40, fontWeight: 700, lineHeight: 1 }}>$299</span>
+              <span style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>once · never billed again</span>
+            </div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.55)", textDecoration: "line-through", marginTop: 2 }}>
+              vs. $708/yr on Premium — pays for itself in ~5 months
+            </div>
+
+            <div style={{ marginTop: 12, marginBottom: 12 }}>
+              {[
+                "Lifetime verified status — free as long as your business exists",
+                "Permanent Founding-Member badge customers can see",
+                "Top priority placement on the map, locked in",
+                "Every future feature & analytics — included forever",
+              ].map(f => (
+                <div key={f} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "4px 0", fontFamily: F.body, fontSize: 12, color: "rgba(255,255,255,0.92)", lineHeight: 1.4 }}>
+                  <span style={{ color: C.lime, fontWeight: 800 }}>✓</span>{f}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(125,200,50,0.3)", borderRadius: 10, padding: "9px 12px", marginBottom: 12, fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.9)", lineHeight: 1.5 }}>
+              🌱 You won't just save money — you'll be a <strong style={{ color: C.white }}>founding pioneer of local commerce</strong> in your community, on the map before anyone else.
+            </div>
+
+            <button onClick={() => choose({ key: "lifetime", name: "Lifetime" })} disabled={busyTier === "lifetime"} style={{
+              width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 800,
+              padding: "15px", border: "none", borderRadius: 13, cursor: busyTier === "lifetime" ? "wait" : "pointer", opacity: busyTier === "lifetime" ? 0.7 : 1,
+            }}>{busyTier === "lifetime" ? "Starting…" : "Claim Lifetime — $299 once →"}</button>
+            <div style={{ textAlign: "center", marginTop: 8, fontFamily: F.mono, fontSize: 8, color: "rgba(255,255,255,0.5)", letterSpacing: "0.05em", lineHeight: 1.5 }}>
+              ONE-TIME PAYMENT · NON-TRANSFERABLE · TIED TO THIS BUSINESS
+            </div>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.1em", marginBottom: 10 }}>— OR CHOOSE A MONTHLY PLAN —</div>
+
         {tiers.map(t => (
           <div key={t.name} style={{
             ...(t.popular ? {} : glass(0.5)),
@@ -1320,11 +1877,13 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
 // ═════════════════════════════════════════════════════════
 const SCREENS = {
   welcome:       { flow: "consumer", screen: "01 · WELCOME",       label: "Choose your path — shopper or business owner",      render: (nav) => <WelcomeScreen {...nav} /> },
-  consumerHome:  { flow: "consumer", screen: "02 · CONSUMER HOME", label: "Home feed with 'Local Impact' card (Upside-style)",  render: (nav, data) => <ConsumerHomeScreen {...nav} biz={data.biz} source={data.source} /> },
-  map:           { flow: "consumer", screen: "03 · MAP",           label: "Map view — score markers + bottom sheet preview",    render: (nav, data) => <MapScreen {...nav} biz={data.biz} /> },
+  shopperWelcome:{ flow: "consumer", screen: "01b · SHOPPER PITCH", label: "Why DollarVote matters — the shopper manifesto",     render: (nav) => <ShopperWelcomeScreen {...nav} /> },
+  consumerHome:  { flow: "consumer", screen: "02 · CONSUMER HOME", label: "Home feed with 'Local Impact' card (Upside-style)",  render: (nav, data) => <ConsumerHomeScreen {...nav} biz={data.biz} source={data.source} geo={data.geo} /> },
+  map:           { flow: "consumer", screen: "03 · MAP",           label: "Map view — score markers + bottom sheet preview",    render: (nav, data) => <MapScreen {...nav} biz={data.biz} geo={data.geo} requestLocation={data.requestLocation} setManual={data.setManual} /> },
   categories:    { flow: "consumer", screen: "04 · CATEGORIES",    label: "Browse by category — Restaurant, Retail, Services",  render: (nav) => <CategoriesScreen {...nav} /> },
-  profile:       { flow: "consumer", screen: "05 · PROFILE",       label: "Business detail — 'Where your $10 goes' breakdown",  render: (nav) => <BusinessProfileScreen {...nav} /> },
-  impact:        { flow: "consumer", screen: "06 · MY IMPACT",     label: "Personal impact tracker — your local % over time",   render: (nav) => <ImpactScreen {...nav} /> },
+  profile:       { flow: "consumer", screen: "05 · PROFILE",       label: "Business detail — 'Where your $10 goes' breakdown",  render: (nav, data) => <BusinessProfileScreen {...nav} biz={data.selectedBiz} /> },
+  impact:        { flow: "consumer", screen: "06 · MY IMPACT",     label: "Personal impact tracker — your local % over time",   render: (nav, data) => <ImpactScreen {...nav} session={data.session} isActive={data.isActive} /> },
+  shopperJoin:   { flow: "consumer", screen: "06b · MEMBERSHIP",   label: "Shopper membership — $4.99/mo sign-up + checkout",   render: (nav, data) => <ShopperJoinScreen {...nav} session={data.session} /> },
   bizWelcome:    { flow: "business", screen: "07 · BIZ WELCOME",   label: "Why your DollarVote score is worth pursuing",        render: (nav) => <BizWelcomeScreen {...nav} /> },
   auth:          { flow: "business", screen: "08 · ACCOUNT",       label: "Sign up or log in as a business owner",              render: (nav, data) => <AuthScreen {...nav} session={data.session} /> },
   bizPricing:    { flow: "business", screen: "09 · PRICING",       label: "Tier selector — Free / Starter / Growth / Premium",  render: (nav, data) => <BizPricingScreen {...nav} session={data.session} /> },
@@ -1332,20 +1891,37 @@ const SCREENS = {
   admin:         { flow: "admin",    screen: "★ ADMIN",            label: "Review queue — approve & publish submissions",       render: (nav, data) => <AdminScreen {...nav} session={data.session} /> },
 };
 
-const CONSUMER_ORDER = ["welcome", "consumerHome", "map", "categories", "profile", "impact"];
+const CONSUMER_ORDER = ["welcome", "shopperWelcome", "consumerHome", "map", "categories", "profile", "impact", "shopperJoin"];
 const BUSINESS_ORDER = ["bizWelcome", "auth", "bizPricing", "bizDashboard"];
 
 // ═════════════════════════════════════════════════════════
 // INTERACTIVE PROTOTYPE — single phone with real navigation
 // ═════════════════════════════════════════════════════════
+// Read an optional starting screen from the URL so other pages can deep-link in.
+// e.g. "/?screen=auth" (or "#auth") opens the sign-in screen directly.
+function initialStack() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("screen") || window.location.hash.replace("#", "");
+    if (target && SCREENS[target]) {
+      // Start at welcome so a Back button still makes sense, then the deep-linked screen on top.
+      return target === "welcome" ? ["welcome"] : ["welcome", target];
+    }
+  } catch { /* ignore */ }
+  return ["welcome"];
+}
+
 function Prototype() {
-  const [stack, setStack] = useState(["welcome"]);
+  const [stack, setStack] = useState(initialStack);
+  const [selectedBiz, setSelectedBiz] = useState(null);
   const current = stack[stack.length - 1];
   const { biz, source } = useBusinesses();
   const { session } = useAuth();
+  const { isActive } = useSubscription(session);
+  const { geo, requestLocation, setManual } = useGeo();
 
   const nav = {
-    go: (key) => setStack((s) => [...s, key]),
+    go: (key, b) => { if (b !== undefined) setSelectedBiz(b); setStack((s) => [...s, key]); },
     back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
   };
   const restart = () => setStack(["welcome"]);
@@ -1389,7 +1965,7 @@ function Prototype() {
       </div>
 
       {/* The live phone */}
-      <PhoneFrame>{meta.render(nav, { biz, source, session })}</PhoneFrame>
+      <PhoneFrame>{meta.render(nav, { biz, source, session, isActive, geo, requestLocation, setManual, selectedBiz })}</PhoneFrame>
 
       {/* Hint */}
       <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, textAlign: "center", maxWidth: 320, lineHeight: 1.5 }}>
@@ -1449,7 +2025,7 @@ function Gallery() {
       }}>
         {keys.map(k => (
           <Phone key={k} label={SCREENS[k].label} screen={SCREENS[k].screen}>
-            {SCREENS[k].render({}, { biz: SAMPLE_BIZ, source: "sample", session: null })}
+            {SCREENS[k].render({}, { biz: SAMPLE_BIZ, source: "sample", session: null, isActive: false })}
           </Phone>
         ))}
       </div>
@@ -1481,7 +2057,46 @@ function Gallery() {
 // ═════════════════════════════════════════════════════════
 // MAIN APP — toggle between interactive prototype & gallery
 // ═════════════════════════════════════════════════════════
-export default function App() {
+// ═════════════════════════════════════════════════════════
+// APP MODE — clean, full-screen product (what real users see)
+// The app fills the viewport like a native app: no prototype
+// chrome, no marketing header, no phone frame.
+// ═════════════════════════════════════════════════════════
+function AppMode() {
+  const [stack, setStack] = useState(initialStack);
+  const [selectedBiz, setSelectedBiz] = useState(null);
+  const current = stack[stack.length - 1];
+  const { biz, source } = useBusinesses();
+  const { session } = useAuth();
+  const { isActive } = useSubscription(session);
+  const { geo, requestLocation, setManual } = useGeo();
+
+  const nav = {
+    go: (key, b) => { if (b !== undefined) setSelectedBiz(b); setStack((s) => [...s, key]); },
+    back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
+  };
+  const meta = SCREENS[current];
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      maxWidth: 480, margin: "0 auto",
+      background: C.white,
+      boxShadow: "0 0 60px rgba(15,21,37,0.10)",
+      display: "flex", flexDirection: "column", overflow: "hidden",
+    }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {meta.render(nav, { biz, source, session, isActive, geo, requestLocation, setManual, selectedBiz })}
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════
+// SHOWCASE — the designer/prototype preview (header + toggle)
+// Reachable at "?showcase=1" for design review.
+// ═════════════════════════════════════════════════════════
+function Showcase() {
   const [view, setView] = useState("prototype");
 
   return (
@@ -1491,18 +2106,6 @@ export default function App() {
       fontFamily: F.body,
       padding: "40px 20px 80px",
     }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        html, body, #root {
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-          text-rendering: optimizeLegibility;
-        }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
-      `}</style>
-
       {/* Top header */}
       <div style={{ maxWidth: 1400, margin: "0 auto 28px", textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
@@ -1538,5 +2141,30 @@ export default function App() {
 
       {view === "prototype" ? <Prototype /> : <Gallery />}
     </div>
+  );
+}
+
+export default function App() {
+  // Default to clean app mode. The prototype showcase is available at ?showcase=1.
+  const showcase = (() => {
+    try { return new URLSearchParams(window.location.search).has("showcase"); }
+    catch { return false; }
+  })();
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        html, body, #root {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+      `}</style>
+      {showcase ? <Showcase /> : <AppMode />}
+    </>
   );
 }
