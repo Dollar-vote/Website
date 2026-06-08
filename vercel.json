@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        { "type": "host", "value": "(www\\.)?dollar-vote\\.com" }
+      ],
+      "destination": "/landing.html"
+    }
+  ]
+}
