@@ -1887,6 +1887,7 @@ function useMySubmission(session) {
     supabase
       .from("ceis_submissions")
       .select("business_name, category, ein, reg_state, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at")
+      .eq("user_id", session.user.id) // only THIS owner's submission (admins can read all, so filter explicitly)
       .order("created_at", { ascending: false })
       .limit(1)
       .then(({ data: rows, error }) => {
