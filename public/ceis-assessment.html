@@ -914,6 +914,10 @@ function saveIdentity(){
     alert('Please add your business name and category to continue.');
     return;
   }
+  if(!state.identity.address || state.identity.address.trim().length < 6){
+    alert('Please add your business street address — it places you on the DollarVote map.');
+    return;
+  }
   next();
 }
 function wire(s){
