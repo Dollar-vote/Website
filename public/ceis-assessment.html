@@ -753,13 +753,17 @@ function scoreHTML(s){
       <div class="tier-badge ${s.ev.tierClass}">${s.ev.tier}</div>
     </div>
     <div class="evidence-desc">${s.ev.desc}</div>
-    <div class="drop ${hasEv?'has':''}" id="drop_${s.id}" onclick="fakeUpload('${s.id}')">
-      ${hasEv
+    <input id="file_${s.id}" type="file" accept=".pdf,image/*,.xlsx,.xls,.csv,.doc,.docx,.png,.jpg,.jpeg" style="display:none" onchange="uploadEvidence('${s.id}', this)">
+    <div class="drop ${hasEv && !hasEv.uploading ? 'has':''}" id="drop_${s.id}" onclick="document.getElementById('file_${s.id}').click()">
+      ${hasEv && hasEv.uploading
+        ? `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" stroke-dasharray="40 20"/></svg>
+           <div class="drop-main">Uploading ${hasEv.name}…</div>`
+        : hasEv
         ? `<svg viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
-           <div class="drop-main">${hasEv} — uploaded ✓</div>
+           <div class="drop-main">${hasEv.name} — uploaded ✓</div>
            <div class="drop-sub">Click to replace</div>`
         : `<svg viewBox="0 0 24 24" fill="none"><path d="M12 15V3m0 0L8 7m4-4l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-           <div class="drop-main">Drag a file here or click to upload</div>
+           <div class="drop-main">Click to upload your document</div>
            <div class="drop-sub">PDF, image, or spreadsheet · up to 25 MB</div>`}
     </div>
     <div class="sub-guide">${bulbIcon()} <div>${s.ev.sub}</div></div>
@@ -896,9 +900,31 @@ function pick(id,i){
   document.querySelectorAll(`#opts_${id} .opt`).forEach((el,n)=>el.classList.toggle('sel',n===i));
   updateScore(); renderStepNav(); updateProgress();
 }
-function fakeUpload(id){
-  const names=['statement.pdf','invoice_batch.pdf','payroll_export.xlsx','certificate.pdf','utility_bills.pdf','records.pdf'];
-  state.evidence[id]=names[Math.floor(Math.random()*names.length)];
+// One folder per assessment session, namespaced under the owner's user id.
+const UPLOAD_BATCH = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8);
+async function uploadEvidence(id, input){
+  const file = input && input.files && input.files[0];
+  if(!file) return;
+  if(file.size > 26214400){ alert('That file is larger than 25 MB. Please upload a smaller file.'); input.value=''; return; }
+  if(!sb){ alert('No connection — please try again.'); return; }
+  const { data: u } = await sb.auth.getUser();
+  const uid = u && u.user ? u.user.id : null;
+  if(!uid){ alert('Please log in as a business owner first, then upload your documents. (Open the assessment from the Pricing screen after signing in.)'); return; }
+
+  // Show an "uploading" state.
+  state.evidence[id] = { name: file.name, uploading: true };
+  render();
+
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+  const path = `${uid}/${UPLOAD_BATCH}/${id}__${safe}`;
+  const { error } = await sb.storage.from('ceis-evidence').upload(path, file, { upsert: true, contentType: file.type || 'application/octet-stream' });
+  if(error){
+    delete state.evidence[id];
+    render();
+    alert('Sorry — that upload failed: ' + (error.message || 'unknown error') + '. Please try again.');
+    return;
+  }
+  state.evidence[id] = { name: file.name, path };
   render();
 }
 function saveIdentity(){

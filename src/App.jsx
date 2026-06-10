@@ -1505,6 +1505,13 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
   const approve = (id) => setStatus(id, "verified");
   const reject  = (id) => { if (confirm("Reject this submission? Its pin will be removed from the map.")) setStatus(id, "rejected"); };
 
+  // Open an uploaded evidence document via a short-lived signed URL (admins can read all).
+  async function openDoc(path) {
+    const { data, error } = await supabase.storage.from("ceis-evidence").createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) { alert("Couldn't open that document: " + (error?.message || "unknown error")); return; }
+    window.open(data.signedUrl, "_blank", "noopener");
+  }
+
   const wrap = (children) => (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
       <div style={{ padding: "8px 18px 14px", background: C.white }}>
@@ -1547,7 +1554,7 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
   );
 
   const card = (r) => {
-    const docs = r.evidence && typeof r.evidence === "object" ? Object.values(r.evidence).filter(Boolean) : [];
+    const docEntries = r.evidence && typeof r.evidence === "object" ? Object.entries(r.evidence).filter(([, v]) => v) : [];
     const answered = r.answers && typeof r.answers === "object" ? Object.keys(r.answers).length : 0;
     const ein = r.ein ? `••• •• ${String(r.ein).slice(-4)}` : "—";
     const statusColor = r.status === "verified" ? C.green : r.status === "rejected" ? C.red : C.amber;
@@ -1580,19 +1587,20 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
           <PillarBars sub={r} />
         </div>
 
-        {/* Evidence */}
+        {/* Evidence — real uploaded documents (open via signed URL) */}
         <div style={{ marginTop: 12 }}>
           <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.08em", marginBottom: 6 }}>
-            EVIDENCE ({docs.length}) · {answered} questions answered
+            DOCUMENTS ({docEntries.length}) · {answered} questions answered
           </div>
-          {docs.length === 0
+          {docEntries.length === 0
             ? <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft }}>No documents attached.</div>
-            : docs.map((d, i) => (
-                <div key={i} style={{ fontFamily: F.body, fontSize: 11.5, color: C.ink, padding: "3px 0" }}>📎 {String(d)}</div>
-              ))}
-          <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, marginTop: 6, fontStyle: "italic" }}>
-            Note: document uploads are still placeholders — real file review comes next.
-          </div>
+            : docEntries.map(([qid, v]) => {
+                const name = v && typeof v === "object" ? v.name : String(v);
+                const path = v && typeof v === "object" ? v.path : null;
+                return path
+                  ? <div key={qid} onClick={() => openDoc(path)} style={{ fontFamily: F.body, fontSize: 11.5, color: C.teal, fontWeight: 600, padding: "4px 0", cursor: "pointer" }}>📎 {name} <span style={{ fontSize: 10 }}>↗</span></div>
+                  : <div key={qid} style={{ fontFamily: F.body, fontSize: 11.5, color: C.soft, padding: "4px 0" }}>📎 {name} <span style={{ fontSize: 9 }}>(placeholder)</span></div>;
+              })}
         </div>
 
         {/* Actions (pending only) */}
