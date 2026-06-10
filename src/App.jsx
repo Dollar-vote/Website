@@ -1486,7 +1486,7 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     // Admins can read all submissions; non-admins get nothing back (RLS).
     const { data, error } = await supabase
       .from("ceis_submissions")
-      .select("id, business_name, category, score_total, tier, status, ref_code, created_at")
+      .select("id, business_name, category, ein, reg_state, address, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at, answers, evidence")
       .order("created_at", { ascending: false });
     if (error) { setState({ phase: "error", rows: [], isAdmin: false, err: error.message }); return; }
     // Confirm admin explicitly (so we can show a clear "not authorized" message).
@@ -1496,12 +1496,14 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [session]);
 
-  async function approve(id) {
+  async function setStatus(id, status) {
     setBusyId(id);
-    await supabase.from("ceis_submissions").update({ status: "verified" }).eq("id", id);
+    await supabase.from("ceis_submissions").update({ status }).eq("id", id);
     await load();
     setBusyId(null);
   }
+  const approve = (id) => setStatus(id, "verified");
+  const reject  = (id) => { if (confirm("Reject this submission? Its pin will be removed from the map.")) setStatus(id, "rejected"); };
 
   const wrap = (children) => (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
@@ -1533,29 +1535,90 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     <button onClick={() => go("auth")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px 20px", border: "none", borderRadius: 12, cursor: "pointer" }}>Log in →</button>);
   if (state.phase === "error" || !state.isAdmin) return note("🚫", "Not authorized", "This account isn't an admin. Ask an existing admin to add you.");
 
-  const pending = state.rows.filter(r => r.status !== "verified");
-  const done = state.rows.filter(r => r.status === "verified");
+  const pending  = state.rows.filter(r => r.status !== "verified" && r.status !== "rejected");
+  const done     = state.rows.filter(r => r.status === "verified");
+  const rejected = state.rows.filter(r => r.status === "rejected");
 
-  const card = (r) => (
-    <div key={r.id} style={{ ...glass(0.6), borderRadius: 14, padding: 14, marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink }}>{r.business_name}</div>
-          <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft, marginTop: 2 }}>{r.category || "—"} · Ref {r.ref_code || "—"}</div>
+  const row = (label, value) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+      <span style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid }}>{label}</span>
+      <span style={{ fontFamily: F.body, fontSize: 11.5, fontWeight: 600, color: C.ink, textAlign: "right", maxWidth: "62%", wordBreak: "break-word" }}>{value}</span>
+    </div>
+  );
+
+  const card = (r) => {
+    const docs = r.evidence && typeof r.evidence === "object" ? Object.values(r.evidence).filter(Boolean) : [];
+    const answered = r.answers && typeof r.answers === "object" ? Object.keys(r.answers).length : 0;
+    const ein = r.ein ? `••• •• ${String(r.ein).slice(-4)}` : "—";
+    const statusColor = r.status === "verified" ? C.green : r.status === "rejected" ? C.red : C.amber;
+    return (
+      <div key={r.id} style={{ ...glass(0.6), borderRadius: 14, padding: 14, marginBottom: 10 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink }}>{r.business_name}</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft, marginTop: 2 }}>Ref {r.ref_code || "—"} · {r.created_at ? new Date(r.created_at).toLocaleDateString() : ""}</div>
+            <div style={{ marginTop: 6 }}><Tag color={statusColor}>{r.status}</Tag></div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <ScoreBadge score={Math.round(Number(r.score_total))} size={46} />
+            <div style={{ fontFamily: F.mono, fontSize: 8, color: C.soft, marginTop: 3 }}>{r.tier}</div>
+          </div>
         </div>
-        <ScoreBadge score={Math.round(Number(r.score_total))} size={40} />
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-        <Tag color={r.status === "verified" ? C.green : C.amber}>{r.status}</Tag>
-        <span style={{ flex: 1 }} />
-        {r.status !== "verified" && (
-          <button onClick={() => approve(r.id)} disabled={busyId === r.id} style={{
-            background: GRAD, color: C.white, fontFamily: F.body, fontSize: 11, fontWeight: 700,
-            padding: "8px 14px", border: "none", borderRadius: 9, cursor: busyId === r.id ? "wait" : "pointer", opacity: busyId === r.id ? 0.7 : 1,
-          }}>{busyId === r.id ? "Approving…" : "✓ Approve & publish"}</button>
+
+        {/* Identity to verify */}
+        <div style={{ marginTop: 10 }}>
+          {row("Category", r.category || "—")}
+          {row("Address", r.address || "— (none provided)")}
+          {row("EIN", ein)}
+          {row("Reg. state", r.reg_state || "—")}
+        </div>
+
+        {/* Pillar breakdown */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.08em", marginBottom: 8 }}>SCORE BREAKDOWN</div>
+          <PillarBars sub={r} />
+        </div>
+
+        {/* Evidence */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.08em", marginBottom: 6 }}>
+            EVIDENCE ({docs.length}) · {answered} questions answered
+          </div>
+          {docs.length === 0
+            ? <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft }}>No documents attached.</div>
+            : docs.map((d, i) => (
+                <div key={i} style={{ fontFamily: F.body, fontSize: 11.5, color: C.ink, padding: "3px 0" }}>📎 {String(d)}</div>
+              ))}
+          <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, marginTop: 6, fontStyle: "italic" }}>
+            Note: document uploads are still placeholders — real file review comes next.
+          </div>
+        </div>
+
+        {/* Actions (pending only) */}
+        {r.status !== "verified" && r.status !== "rejected" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button onClick={() => approve(r.id)} disabled={busyId === r.id} style={{
+              flex: 1, background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700,
+              padding: "10px", border: "none", borderRadius: 10, cursor: busyId === r.id ? "wait" : "pointer", opacity: busyId === r.id ? 0.7 : 1,
+            }}>{busyId === r.id ? "Working…" : "✓ Approve & publish"}</button>
+            <button onClick={() => reject(r.id)} disabled={busyId === r.id} style={{
+              background: C.white, color: C.red, fontFamily: F.body, fontSize: 12, fontWeight: 700,
+              padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: busyId === r.id ? "wait" : "pointer",
+            }}>Reject</button>
+          </div>
         )}
       </div>
-    </div>
+    );
+  };
+
+  const section = (label, list, sub) => list.length > 0 && (
+    <>
+      <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", margin: "12px 0 8px" }}>
+        {label} ({list.length}){sub ? ` · ${sub}` : ""}
+      </div>
+      {list.map(card)}
+    </>
   );
 
   return wrap(
@@ -1566,15 +1629,8 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
       {pending.length === 0
         ? <div style={{ fontFamily: F.body, fontSize: 12, color: C.soft, padding: "8px 0 16px" }}>Nothing waiting. 🎉</div>
         : pending.map(card)}
-
-      {done.length > 0 && (
-        <>
-          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", margin: "12px 0 8px" }}>
-            VERIFIED ({done.length}) · now public
-          </div>
-          {done.map(card)}
-        </>
-      )}
+      {section("VERIFIED", done, "now public")}
+      {section("REJECTED", rejected, "not shown on map")}
     </>
   );
 }
