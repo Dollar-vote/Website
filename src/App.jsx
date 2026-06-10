@@ -1152,6 +1152,19 @@ function useAuth() {
   return { session, ready };
 }
 
+// True when the logged-in user is a DollarVote admin (in the `admins` table).
+function useIsAdmin(session) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (!supabase || !session) { setIsAdmin(false); return; }
+    supabase.from("admins").select("user_id").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => { if (alive) setIsAdmin(!!data); });
+    return () => { alive = false; };
+  }, [session]);
+  return isAdmin;
+}
+
 // Loads the logged-in user's subscription row (active membership status).
 function useSubscription(session) {
   const [sub, setSub] = useState({ phase: "loading", row: null });
@@ -1343,6 +1356,7 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [agreed, setAgreed] = useState(false); // Terms & Privacy acceptance (signup only)
+  const isAdmin = useIsAdmin(session); // admins land in the review console, not the dashboard
 
   // Boilerplate version of the legal docs the owner is agreeing to.
   const TERMS_VERSION = "v1.0";
@@ -1357,7 +1371,10 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
           <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
           <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 6 }}>You're signed in</div>
           <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, marginBottom: 20 }}>{session.user.email}</div>
-          <button onClick={() => go("bizDashboard")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>Go to my dashboard →</button>
+          {isAdmin && (
+            <button onClick={() => go("admin")} style={{ background: C.ink, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>🛠 Open review queue →</button>
+          )}
+          <button onClick={() => go(isAdmin ? "admin" : "bizDashboard")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>{isAdmin ? "Continue →" : "Go to my dashboard →"}</button>
           <button onClick={() => supabase && supabase.auth.signOut()} style={{ background: C.white, color: C.mid, fontFamily: F.body, fontSize: 12, fontWeight: 600, padding: "11px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" }}>Sign out</button>
         </div>
       </div>
@@ -1390,9 +1407,13 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
         if (e2) { setMsg({ type: "ok", text: "Account created. Check your email to confirm, then log in." }); }
         else { go("bizPricing"); } // brand-new account → choose a plan
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
         if (error) throw error;
-        go("bizDashboard"); // returning member → straight to their dashboard, not pricing
+        // Admins land in the review console; everyone else in their dashboard.
+        let admin = false;
+        const uid = data?.user?.id;
+        if (uid) { const { data: a } = await supabase.from("admins").select("user_id").eq("user_id", uid).maybeSingle(); admin = !!a; }
+        go(admin ? "admin" : "bizDashboard");
       }
     } catch (e) {
       setMsg({ type: "err", text: e.message || "Something went wrong." });
@@ -1882,6 +1903,7 @@ function useMySubmission(session) {
 function BizDashboardScreen({ go = () => {}, session = null }) {
   const mine = useMySubmission(session);
   const sub = mine.sub;
+  const isAdmin = useIsAdmin(session);
 
   // Real data when the owner has a submission; sample data otherwise (e.g. the gallery).
   const bizName = sub ? sub.business_name : "Maria's Soap Studio";
@@ -1909,6 +1931,18 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+        {/* Admin entry point — only shown to admins */}
+        {isAdmin && (
+          <div onClick={() => go("admin")} style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 14, marginBottom: 12, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+            <div style={{ fontSize: 22 }}>🛠</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700 }}>Verification review queue</div>
+              <div style={{ fontFamily: F.body, fontSize: 10.5, color: "rgba(255,255,255,0.6)" }}>Review, approve & publish business submissions</div>
+            </div>
+            <span style={{ color: C.lime, fontWeight: 700 }}>→</span>
+          </div>
+        )}
+
         {/* Empty state: logged in but no submission yet */}
         {session && mine.phase === "ready" && !sub && (
           <div style={{ ...glass(0.6), borderRadius: 16, padding: 20, marginBottom: 12, textAlign: "center" }}>
