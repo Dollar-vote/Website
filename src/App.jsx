@@ -333,6 +333,7 @@ function BizTabs({ active, go = () => {} }) {
     ["📈", "Stats", "bizStats"],
     ["🚀", "Improve", "bizImprove"],
     ["⚙️", "Profile", "bizProfile"],
+    ["🗺", "Explore", "map"], // exit the dashboard → consumer map + search
   ];
   return (
     <div style={{ background: "rgba(255,255,255,0.72)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(255,255,255,0.6)", padding: "8px 12px 16px", display: "flex", justifyContent: "space-around" }}>
