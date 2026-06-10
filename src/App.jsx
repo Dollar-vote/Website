@@ -74,6 +74,60 @@ function scoreColor(s) {
   return "#C87020";
 }
 
+// CEIS tiers (ascending). Used to compute "points to the next tier".
+const NEXT_TIERS = [
+  { min: 40, name: "Growing Intentionally" },
+  { min: 60, name: "Solid Commitment" },
+  { min: 75, name: "Above & Beyond" },
+  { min: 90, name: "Community Champion" },
+];
+// The next tier above the current total, with the point gap to reach it (null = already top tier).
+function nextTierUp(total) {
+  for (const t of NEXT_TIERS) {
+    if (total < t.min) return { ...t, gap: Math.max(1, Math.ceil(t.min - total)) };
+  }
+  return null;
+}
+
+// Per-pillar improvement ideas, tied to real CEIS factors. Shown weakest-pillar-first.
+const PILLAR_META = {
+  loc: { label: "Locality",       max: 40, color: C.blue },
+  sus: { label: "Sustainability", max: 30, color: C.lime },
+  trn: { label: "Transparency",   max: 30, color: C.teal },
+};
+const IMPROVE_TIPS = {
+  loc: [
+    ["Source more inventory from local suppliers", "+4 pts"],
+    ["Bank with a local credit union or community bank", "+3 pts"],
+    ["Hire from your own neighborhood", "+3 pts"],
+    ["Verify independent local ownership", "+2 pts"],
+  ],
+  sus: [
+    ["Document a recycling or composting program", "+3 pts"],
+    ["Join 1% for the Planet", "+3 pts"],
+    ["Switch to LED lighting or renewable energy", "+2 pts"],
+    ["Cut single-use packaging", "+2 pts"],
+  ],
+  trn: [
+    ["Publish your wage floor / pay a living wage", "+3 pts"],
+    ["Upload documents that verify your claims", "+3 pts"],
+    ["Share an ownership & supplier disclosure", "+2 pts"],
+    ["Add a public community-impact statement", "+2 pts"],
+  ],
+};
+
+// Rank the three pillars by how much headroom is left (most room to grow first).
+function pillarHeadroom(sub) {
+  const vals = {
+    loc: Number(sub?.score_loc) || 0,
+    sus: Number(sub?.score_sus) || 0,
+    trn: Number(sub?.score_trn) || 0,
+  };
+  return Object.keys(PILLAR_META)
+    .map((k) => ({ key: k, ...PILLAR_META[k], value: vals[k], room: PILLAR_META[k].max - vals[k] }))
+    .sort((a, b) => b.room - a.room);
+}
+
 // Sample biz data — used as a fallback if the database isn't reachable.
 const SAMPLE_BIZ = [
   { id:1, name:"Maria's Soap Studio",     cat:"Retail",     score:91, loc:36, sus:27, trn:28, hood:"Eastern Market", verified:true,  emoji:"🧼", local:8.30, distance:"0.4 mi" },
@@ -276,9 +330,9 @@ function ConsumerTabs({ active, go = () => {} }) {
 function BizTabs({ active, go = () => {} }) {
   const tabs = [
     ["📊", "Score", "bizDashboard"],
-    ["📈", "Stats", null],
-    ["🚀", "Improve", null],
-    ["⚙️", "Profile", null],
+    ["📈", "Stats", "bizStats"],
+    ["🚀", "Improve", "bizImprove"],
+    ["⚙️", "Profile", "bizProfile"],
   ];
   return (
     <div style={{ background: "rgba(255,255,255,0.72)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)", borderTop: "1px solid rgba(255,255,255,0.6)", padding: "8px 12px 16px", display: "flex", justifyContent: "space-around" }}>
@@ -625,11 +679,15 @@ function MapboxMap({ businesses, selectedId, onSelect, userLat, userLng }) {
     markersRef.current = [];
     pts.forEach(b => {
       const col = scoreColor(b.score);
+      const pending = !b.verified; // not yet verified by Dollar Vote → show faded
       const el = document.createElement("div");
-      el.style.cssText = `cursor:pointer;background:#fff;border:2px solid ${col};border-radius:10px;
-        padding:3px 7px;box-shadow:0 3px 8px rgba(0,0,0,.25);font-family:${F.serif};
-        font-weight:700;font-size:13px;color:${col};line-height:1;`;
+      el.title = pending ? "Pending Dollar Vote verification" : "Dollar Vote verified";
+      el.style.cssText = `cursor:pointer;background:#fff;border:2px ${pending ? "dashed" : "solid"} ${col};border-radius:10px;
+        padding:3px 7px;box-shadow:0 3px 8px rgba(0,0,0,${pending ? ".12" : ".25"});font-family:${F.serif};
+        font-weight:700;font-size:13px;color:${col};line-height:1;opacity:${pending ? "0.5" : "1"};
+        display:flex;align-items:center;gap:3px;`;
       el.textContent = b.score;
+      if (pending) { const c = document.createElement("span"); c.textContent = "⏳"; c.style.cssText = "font-size:9px;"; el.appendChild(c); }
       el.addEventListener("click", (e) => { e.stopPropagation(); onSelect(b); });
       const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([Number(b.lng), Number(b.lat)])
@@ -739,9 +797,9 @@ function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { p
               const b = filtered[i];
               if (!b) return null;
               return (
-                <div key={i} onClick={() => setSelected(b)} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", cursor: "pointer" }}>
-                  <div style={{ background: C.white, borderRadius: 10, padding: "5px 8px 4px", border: `2px solid ${scoreColor(b.score)}`, boxShadow: "0 4px 8px rgba(0,0,0,0.2)", minWidth: 38, textAlign: "center", position: "relative" }}>
-                    <div style={{ fontFamily: F.serif, fontSize: 13, fontWeight: 700, color: scoreColor(b.score), lineHeight: 1 }}>{b.score}</div>
+                <div key={i} onClick={() => setSelected(b)} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", cursor: "pointer", opacity: b.verified ? 1 : 0.5 }}>
+                  <div style={{ background: C.white, borderRadius: 10, padding: "5px 8px 4px", border: `2px ${b.verified ? "solid" : "dashed"} ${scoreColor(b.score)}`, boxShadow: "0 4px 8px rgba(0,0,0,0.2)", minWidth: 38, textAlign: "center", position: "relative" }}>
+                    <div style={{ fontFamily: F.serif, fontSize: 13, fontWeight: 700, color: scoreColor(b.score), lineHeight: 1 }}>{b.score}{b.verified ? "" : " ⏳"}</div>
                     <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%)", border: "6px solid transparent", borderTop: `6px solid ${scoreColor(b.score)}`, borderBottom: "none" }} />
                   </div>
                 </div>
@@ -763,7 +821,9 @@ function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { p
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.name}</div>
                 <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{sel.hood || sel.cat}{sel.distance ? ` · ${sel.distance}` : ""}</div>
-                <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
+                {sel.verified
+                  ? <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
+                  : <Tag color={C.amber}>⏳ {sel.score}/100 · PENDING</Tag>}
               </div>
               <ScoreBadge score={sel.score} size={42} />
             </div>
@@ -809,7 +869,9 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>{b.emoji || "🏬"}</div>
           <div style={{ flex: 1 }}>
-            {b.verified && <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>✓ DOLLARVOTE VERIFIED</Tag>}
+            {b.verified
+              ? <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>✓ DOLLARVOTE VERIFIED</Tag>
+              : <Tag color={C.amber} bg="rgba(232,168,32,0.18)" outline>⏳ PENDING VERIFICATION</Tag>}
             <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, marginTop: 4, lineHeight: 1.1 }}>{b.name}</div>
             <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{b.cat || "Local business"}{b.hood ? ` · ${b.hood}` : ""}</div>
           </div>
@@ -1294,7 +1356,7 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
           <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
           <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 6 }}>You're signed in</div>
           <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, marginBottom: 20 }}>{session.user.email}</div>
-          <button onClick={() => go("bizPricing")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>Continue →</button>
+          <button onClick={() => go("bizDashboard")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>Go to my dashboard →</button>
           <button onClick={() => supabase && supabase.auth.signOut()} style={{ background: C.white, color: C.mid, fontFamily: F.body, fontSize: 12, fontWeight: 600, padding: "11px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" }}>Sign out</button>
         </div>
       </div>
@@ -1325,9 +1387,11 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
         // If email confirmation is on, there's no session yet; try an immediate sign-in.
         const { error: e2 } = await supabase.auth.signInWithPassword({ email, password: pw });
         if (e2) { setMsg({ type: "ok", text: "Account created. Check your email to confirm, then log in." }); }
+        else { go("bizPricing"); } // brand-new account → choose a plan
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
         if (error) throw error;
+        go("bizDashboard"); // returning member → straight to their dashboard, not pricing
       }
     } catch (e) {
       setMsg({ type: "err", text: e.message || "Something went wrong." });
@@ -1736,7 +1800,7 @@ function useMySubmission(session) {
     if (!supabase || !session) { setData({ phase: session ? "loading" : "anon", sub: null }); return; }
     supabase
       .from("ceis_submissions")
-      .select("business_name, category, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at")
+      .select("business_name, category, ein, reg_state, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at")
       .order("created_at", { ascending: false })
       .limit(1)
       .then(({ data: rows, error }) => {
@@ -1872,6 +1936,237 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
   );
 }
 
+// ─────────────────────────────────────────────
+// BUSINESS TAB SCREENS (Stats / Improve / Profile)
+// All read the owner's real submission via useMySubmission.
+// ─────────────────────────────────────────────
+
+// Shared header for the business tab screens.
+function BizTopBar({ title, sub, session }) {
+  return (
+    <div style={{ padding: "8px 18px 14px", background: C.white }}>
+      <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.12em", fontWeight: 700 }}>{title}</div>
+      <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: C.ink }}>{sub ? sub.business_name : "Your business"}</div>
+      {session && <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, marginTop: 2 }}>👤 {session.user.email}</div>}
+    </div>
+  );
+}
+
+// The three pillar progress bars from a submission's real scores.
+function PillarBars({ sub }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {[["loc", "Locality", 40], ["sus", "Sustainability", 30], ["trn", "Transparency", 30]].map(([k, lbl, max]) => {
+        const v = Math.round(Number(sub[`score_${k}`]) || 0);
+        const pct = Math.min(100, (v / max) * 100);
+        return (
+          <div key={k}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: C.ink }}>{lbl}</span>
+              <span style={{ fontFamily: F.mono, fontSize: 11, color: C.mid }}>{v}<span style={{ color: C.soft }}>/{max}</span></span>
+            </div>
+            <div style={{ height: 8, borderRadius: 99, background: C.border, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: PILLAR_META[k].color }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Loading / logged-out / no-submission states for a business tab screen.
+// Returns a full screen for those cases, or null when a real submission exists.
+function bizStateScreen({ mine, session, active, go, title }) {
+  if (mine.sub) return null; // real submission loaded → let the screen render
+  const anon = !session;
+  const empty = session && mine.phase === "ready"; // logged in, fetch done, but no submission
+  let icon = "⏳", head = "Loading…", body = "Fetching your assessment record.", cta = null;
+  if (anon) { icon = "🔐"; head = "Log in to see this"; body = "Sign in as a business owner to track your score, stats and ways to improve."; cta = ["Log in →", () => go("auth")]; }
+  else if (empty) { icon = "📋"; head = "No assessment yet"; body = "Complete your free CEIS™ assessment to unlock your stats and score."; cta = ["Start assessment →", () => openAssessment()]; }
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
+      <BizTopBar title={title} sub={null} session={session} />
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ ...glass(0.6), borderRadius: 16, padding: 24, textAlign: "center", maxWidth: 300 }}>
+          <div style={{ fontSize: 34, marginBottom: 8 }}>{icon}</div>
+          <div style={{ fontFamily: F.serif, fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>{head}</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, lineHeight: 1.5, marginBottom: cta ? 14 : 0 }}>{body}</div>
+          {cta && <button onClick={cta[1]} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px 20px", border: "none", borderRadius: 12, cursor: "pointer" }}>{cta[0]}</button>}
+        </div>
+      </div>
+      <BizTabs active={active} go={go} />
+    </div>
+  );
+}
+
+// STATS tab — real score breakdown + the owner's assessment record.
+function BizStatsScreen({ go = () => {}, session = null }) {
+  const mine = useMySubmission(session);
+  const sub = mine.sub;
+  const notice = bizStateScreen({ mine, session, active: "bizStats", go, title: "YOUR STATS" });
+  if (notice) return notice;
+  const total = Math.round(Number(sub.score_total));
+  const verified = sub.status === "verified";
+  const submitted = sub.created_at ? new Date(sub.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
+      <BizTopBar title="YOUR STATS" sub={sub} session={session} />
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ background: GRAD, color: C.white, borderRadius: 16, padding: 18, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <ScoreBadge score={total} size={58} />
+            <div>
+              <div style={{ fontFamily: F.serif, fontSize: 30, fontWeight: 700, lineHeight: 1 }}>{total}<span style={{ fontSize: 14, opacity: 0.7 }}>/100</span></div>
+              <div style={{ fontFamily: F.body, fontSize: 11, opacity: 0.9, marginTop: 3 }}>{sub.tier}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 12 }}>SCORE BREAKDOWN</div>
+          <PillarBars sub={sub} />
+        </div>
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 10 }}>YOUR ASSESSMENT RECORD</div>
+          {[
+            ["Business", sub.business_name],
+            ["Category", sub.category || "—"],
+            ["Tier", sub.tier],
+            ["Status", verified ? "✓ Verified & live" : "⏳ Under review"],
+            ["Submitted", submitted],
+            ["Reference", sub.ref_code || "—"],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ fontFamily: F.body, fontSize: 12, color: C.mid }}>{k}</span>
+              <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: C.ink, textAlign: "right" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ ...glass(0.5), borderRadius: 14, padding: 14 }}>
+          <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.55 }}>
+            📊 <strong style={{ color: C.ink }}>Customer analytics</strong> — profile views, QR scans and new-customer counts begin tracking once your profile is verified and live in the directory.
+          </div>
+        </div>
+      </div>
+      <BizTabs active="bizStats" go={go} />
+    </div>
+  );
+}
+
+// IMPROVE tab — data-driven: points to next tier + prioritized wins for the weakest pillar.
+function BizImproveScreen({ go = () => {}, session = null }) {
+  const mine = useMySubmission(session);
+  const sub = mine.sub;
+  const notice = bizStateScreen({ mine, session, active: "bizImprove", go, title: "IMPROVE" });
+  if (notice) return notice;
+  const total = Math.round(Number(sub.score_total));
+  const next = nextTierUp(total);
+  const ranked = pillarHeadroom(sub); // weakest pillar first
+  const weakest = ranked[0];
+  const tips = ranked.flatMap((p) => IMPROVE_TIPS[p.key].map(([t, pts]) => ({ t, pts, pillar: p.label, color: p.color })));
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
+      <BizTopBar title="IMPROVE YOUR SCORE" sub={sub} session={session} />
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ background: GRAD, color: C.white, borderRadius: 16, padding: 18, marginBottom: 12 }}>
+          {next ? (
+            <>
+              <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: "0.1em", opacity: 0.85 }}>NEXT MILESTONE</div>
+              <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, marginTop: 4 }}>{next.gap} pts to {next.name}</div>
+              <div style={{ height: 8, borderRadius: 99, background: "rgba(255,255,255,0.25)", overflow: "hidden", marginTop: 12 }}>
+                <div style={{ width: `${Math.min(100, (total / next.min) * 100)}%`, height: "100%", background: C.white, borderRadius: 99 }} />
+              </div>
+              <div style={{ fontFamily: F.body, fontSize: 11, opacity: 0.85, marginTop: 6 }}>You're at {total} — reach {next.min} to level up.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700 }}>🏆 Top tier reached</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, opacity: 0.9, marginTop: 6 }}>You're a Community Champion — keep your evidence current to hold your score.</div>
+            </>
+          )}
+        </div>
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 6 }}>BIGGEST OPPORTUNITY</div>
+          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: C.ink }}>{weakest.label}</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, marginTop: 4 }}>You're using {Math.round(weakest.value)} of {weakest.max} possible points here — your biggest room to grow.</div>
+        </div>
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 8 }}>QUICK WINS · PRIORITIZED FOR YOU</div>
+          {tips.map((tip, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.border}` }}>
+              <div>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: C.ink }}>{tip.t}</div>
+                <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em", marginTop: 2 }}>{tip.pillar.toUpperCase()}</div>
+              </div>
+              <Tag color={tip.color}>{tip.pts}</Tag>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 16 }}>
+          <div style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Made an improvement?</div>
+          <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.65)", marginBottom: 12 }}>Update your assessment with new evidence to raise your verified score.</div>
+          <button onClick={() => openAssessment()} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "11px 18px", border: "none", borderRadius: 11, cursor: "pointer" }}>Update my assessment →</button>
+        </div>
+      </div>
+      <BizTabs active="bizImprove" go={go} />
+    </div>
+  );
+}
+
+// PROFILE tab — public-profile preview + real business details + account actions.
+function BizProfileScreen({ go = () => {}, session = null }) {
+  const mine = useMySubmission(session);
+  const sub = mine.sub;
+  const notice = bizStateScreen({ mine, session, active: "bizProfile", go, title: "PROFILE" });
+  if (notice) return notice;
+  const total = Math.round(Number(sub.score_total));
+  const verified = sub.status === "verified";
+  const maskEin = sub.ein ? `••• •• ${String(sub.ein).slice(-4)}` : "—";
+  const signOut = () => { supabase && supabase.auth.signOut(); go("welcome"); };
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
+      <BizTopBar title="PROFILE & ACCOUNT" sub={sub} session={session} />
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ background: GRAD, color: C.white, borderRadius: 16, padding: 18, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 8.5, letterSpacing: "0.1em", opacity: 0.8, marginBottom: 10 }}>WHAT CUSTOMERS SEE</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <ScoreBadge score={total} size={54} />
+            <div>
+              <div style={{ fontFamily: F.serif, fontSize: 17, fontWeight: 700 }}>{sub.business_name}</div>
+              <div style={{ fontFamily: F.body, fontSize: 11, opacity: 0.9 }}>{sub.category || "Local business"} · {sub.tier}</div>
+              <div style={{ fontFamily: F.mono, fontSize: 8.5, opacity: 0.85, marginTop: 3 }}>{verified ? "✓ VERIFIED" : "⏳ UNDER REVIEW"}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 10 }}>BUSINESS DETAILS</div>
+          {[
+            ["Name", sub.business_name],
+            ["Category", sub.category || "—"],
+            ["EIN", maskEin],
+            ["Registered", sub.reg_state || "—"],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ fontFamily: F.body, fontSize: 12, color: C.mid }}>{k}</span>
+              <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: C.ink, textAlign: "right" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 10 }}>ACCOUNT</div>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0" }}>
+            <span style={{ fontFamily: F.body, fontSize: 12, color: C.mid }}>Email</span>
+            <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: C.ink }}>{session?.user?.email || "—"}</span>
+          </div>
+        </div>
+        <button onClick={() => openAssessment()} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 10 }}>Update my assessment →</button>
+        <button onClick={signOut} style={{ width: "100%", background: C.white, color: C.red, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: `1px solid ${C.border}`, borderRadius: 12, cursor: "pointer" }}>Sign out</button>
+      </div>
+      <BizTabs active="bizProfile" go={go} />
+    </div>
+  );
+}
+
 // ═════════════════════════════════════════════════════════
 // SCREEN REGISTRY
 // ═════════════════════════════════════════════════════════
@@ -1888,11 +2183,14 @@ const SCREENS = {
   auth:          { flow: "business", screen: "08 · ACCOUNT",       label: "Sign up or log in as a business owner",              render: (nav, data) => <AuthScreen {...nav} session={data.session} /> },
   bizPricing:    { flow: "business", screen: "09 · PRICING",       label: "Tier selector — Free / Starter / Growth / Premium",  render: (nav, data) => <BizPricingScreen {...nav} session={data.session} /> },
   bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} /> },
+  bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} /> },
+  bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },
+  bizProfile:    { flow: "business", screen: "10d · PROFILE",      label: "Public-profile preview + business details + account", render: (nav, data) => <BizProfileScreen {...nav} session={data.session} /> },
   admin:         { flow: "admin",    screen: "★ ADMIN",            label: "Review queue — approve & publish submissions",       render: (nav, data) => <AdminScreen {...nav} session={data.session} /> },
 };
 
 const CONSUMER_ORDER = ["welcome", "shopperWelcome", "consumerHome", "map", "categories", "profile", "impact", "shopperJoin"];
-const BUSINESS_ORDER = ["bizWelcome", "auth", "bizPricing", "bizDashboard"];
+const BUSINESS_ORDER = ["bizWelcome", "auth", "bizPricing", "bizDashboard", "bizStats", "bizImprove", "bizProfile"];
 
 // ═════════════════════════════════════════════════════════
 // INTERACTIVE PROTOTYPE — single phone with real navigation

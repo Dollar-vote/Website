@@ -546,6 +546,21 @@ const sb = (window.supabase && SUPABASE_URL)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
 
+/* ---------- Geocoding via OpenStreetMap Nominatim (no API key needed) ---------- */
+// Turn a street address into { lat, lng }. Best-effort: returns nulls on failure so submit never blocks.
+async function geocodeAddress(address){
+  if(!address) return { lat:null, lng:null };
+  try{
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us,ca,mx&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if(!res.ok) return { lat:null, lng:null };
+    const data = await res.json();
+    const f = Array.isArray(data) && data[0];
+    if(f && f.lat && f.lon) return { lat:Number(f.lat), lng:Number(f.lon) };
+  }catch(e){ /* offline / blocked — fall through */ }
+  return { lat:null, lng:null };
+}
+
 /* ============================================================
    RENDER
    ============================================================ */
@@ -666,6 +681,11 @@ function identityHTML(){
       <div class="field-hint">We verify your good standing automatically.</div>
       <input type="text" id="id_state" placeholder="e.g. Michigan" value="${i.state||''}">
     </div>
+  </div>
+  <div class="field">
+    <label class="field-label">Business street address</label>
+    <div class="field-hint">Used to place your business on the DollarVote map. Your exact address isn't shown publicly — only your location pin.</div>
+    <input type="text" id="id_address" placeholder="e.g. 1234 Woodward Ave, Detroit, MI 48226" value="${i.address||''}">
   </div>
   <div class="field">
     <label class="field-label">What kind of business are you?</label>
@@ -886,6 +906,7 @@ function saveIdentity(){
     name: document.getElementById('id_name').value,
     ein: document.getElementById('id_ein').value,
     state: document.getElementById('id_state').value,
+    address: document.getElementById('id_address').value,
     cat: document.getElementById('id_cat').value,
     duns: document.getElementById('id_duns').value,
   };
@@ -932,6 +953,9 @@ async function submitForm(){
   </div>`;
   window.scrollTo({top:0,behavior:'smooth'});
 
+  // Geocode the address so the business can be placed on the map (best-effort).
+  const geo = await geocodeAddress(state.identity.address);
+
   // Build the record from the user's answers.
   const payload = {
     business_name: state.identity.name || 'Unnamed business',
@@ -939,6 +963,9 @@ async function submitForm(){
     reg_state:  state.identity.state || null,
     category:   state.identity.cat   || null,
     duns:       state.identity.duns  || null,
+    address:    state.identity.address || null,
+    lat:        geo.lat,
+    lng:        geo.lng,
     answers:    state.answers,
     evidence:   state.evidence,
     score_loc:  Number(loc.toFixed(2)),
@@ -991,11 +1018,21 @@ async function submitForm(){
       Your projected score is <strong style="color:var(--ink)">${composite.toFixed(1)}</strong> — <strong style="color:var(--teal)">${tier}</strong>.
       We'll verify your documents and finalize your official CEIS™ score within 10 business days, then your profile goes live.
     </p>
+    ${(geo && geo.lat!=null)
+      ? `<p style="font-size:14px;color:var(--gray);max-width:480px;margin:-12px auto 30px;line-height:1.6">📍 Your business is now on the DollarVote map with a <strong style="color:var(--ink)">faded score</strong> — it turns solid once we verify you.</p>`
+      : ``}
     <div class="final-score-card" style="max-width:420px;margin:0 auto">
       <div class="fsc-label">Projected CEIS™ Score</div>
       <div class="fsc-num"><span>${composite.toFixed(1)}</span></div>
       <div class="fsc-tier">${tier}</div>
     </div>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:34px">
+      <a class="btn btn-primary glow" href="/?screen=bizDashboard" style="text-decoration:none">
+        ${checkIcon()} Go to my dashboard
+      </a>
+      <a class="btn btn-ghost" href="/?screen=map" style="text-decoration:none">Explore the map</a>
+    </div>
+    <p style="font-size:13px;color:var(--gray);margin-top:18px">You can close this tab anytime — your assessment is saved.</p>
   </div>`;
   document.getElementById('progFill').style.width='100%';
   document.getElementById('progTxt').textContent = saved ? 'Submitted ✓' : 'Submit failed';
