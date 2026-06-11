@@ -1382,7 +1382,7 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
           {isAdmin && (
             <button onClick={() => go("admin")} style={{ background: C.ink, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>🛠 Open review queue →</button>
           )}
-          <button onClick={() => go(isAdmin ? "admin" : "bizDashboard")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>{isAdmin ? "Continue →" : "Go to my dashboard →"}</button>
+          <button onClick={() => go(isAdmin ? "consumerHome" : "bizDashboard")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>{isAdmin ? "Continue to the app →" : "Go to my dashboard →"}</button>
           <button onClick={() => supabase && supabase.auth.signOut()} style={{ background: C.white, color: C.mid, fontFamily: F.body, fontSize: 12, fontWeight: 600, padding: "11px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer" }}>Sign out</button>
         </div>
       </div>
