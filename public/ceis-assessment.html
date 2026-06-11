@@ -137,6 +137,20 @@
   .opt-desc{font-size:13.5px;color:var(--gray);margin-top:3px;line-height:1.45}
   .opt-pts{font-size:12.5px;font-weight:800;color:var(--teal);background:rgba(46,196,182,.1);padding:4px 10px;border-radius:8px;white-space:nowrap;align-self:center;font-variant-numeric:tabular-nums}
 
+  /* granular Layer-1 variable inputs */
+  .gvars{display:flex;flex-direction:column;gap:4px;margin-bottom:28px}
+  .gvar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 4px;border-bottom:1px solid rgba(0,0,0,.06)}
+  .gv-label{font-size:14px;font-weight:600;color:var(--ink);line-height:1.35;flex:1}
+  .gv-input{font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);background:rgba(255,255,255,.7);border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:9px 11px;outline:none}
+  .gv-input:focus{border-color:var(--teal)}
+  select.gv-input{max-width:230px}
+  .gv-numwrap{display:inline-flex;align-items:center;gap:6px}
+  .gv-num{width:92px;text-align:right}
+  .gv-unit{font-size:13px;font-weight:700;color:var(--lgray)}
+  .gv-toggle{display:inline-flex;gap:6px;flex-shrink:0}
+  .gt{font-family:inherit;font-size:13px;font-weight:700;color:var(--gray);background:rgba(255,255,255,.7);border:1.5px solid rgba(0,0,0,.12);border-radius:9px;padding:8px 16px;cursor:pointer;transition:all .15s}
+  .gt.on{color:#fff;background:var(--grad);border-color:transparent}
+
   /* text & number inputs */
   .field{margin-bottom:22px}
   .field-label{display:block;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:7px}
@@ -536,8 +550,101 @@ const SECTIONS = [
    STATE
    ============================================================ */
 const PILLAR_MAX = { loc:40, sus:30, trn:30 };
-const state = { current:0, answers:{}, evidence:{}, identity:{} };
+const state = { current:0, answers:{}, evidence:{}, identity:{}, g:{} };
 const scoreSections = SECTIONS.filter(s=>s.kind==='score');
+
+/* ============================================================
+   LAYER 1 · THE 47-VARIABLE GRANULAR INSTRUMENT
+   Each score section collects its CEIS™ sub-category variables.
+   ============================================================ */
+const V = (id,label,type,opts,hint)=>({id,label,type,opts,hint});
+const GRANULAR = {
+  L1_1: [ // Supply Chain (12)
+    V('L_01','Purchasing from within 25 miles','pct',null,'e.g. 65'),
+    V('L_02','Purchasing from your region (25–100 mi)','pct',null,'e.g. 15'),
+    V('L_03','Purchasing from in-state (100–250 mi)','pct',null,'e.g. 10'),
+    V('L_04','Named local producers/farms you buy from','count',null,'0–4+'),
+    V('L_05','Number of local suppliers','count',null,'e.g. 8'),
+  ],
+  L1_2: [ // Workforce (10)
+    V('L_06','Staff who live within 25 miles','pct',null,'e.g. 90'),
+    V('L_07','Total employees (headcount)','count',null,'e.g. 12'),
+    V('L_08','Contractors who are local','pct',null,'e.g. 100'),
+  ],
+  L1_3: [ // Ownership (10)
+    V('L_09','Ownership type','select',[['1','Local independent · owner lives locally'],['2','Local independent'],['3','Regional / multi-owner'],['4','Out-of-state owned'],['5','National chain or franchise']]),
+    V('L_10','Owner resides locally','bool'),
+    V('L_11','Years in business','count',null,'e.g. 8'),
+    V('L_12','Franchise royalty paid (% of revenue)','pct',null,'0 if independent'),
+  ],
+  L1_4: [ // Banking & services (8)
+    V('L_13','Primary bank','select',[['1','Local credit union / community bank'],['2','Regional in-state bank'],['3','National bank'],['4','Online / fintech only']]),
+    V('L_14','Relationship with a CDFI lender','bool'),
+    V('L_15','Use a local accountant / CPA','bool'),
+    V('L_16','Local professional-service vendors used','count',null,'0–3+'),
+    V('L_17','D&B PAYDEX score (leave blank if unknown)','count',null,'1–100'),
+    V('L_18','Chamber of commerce member','bool'),
+  ],
+  S2_1: [ // Waste (10)
+    V('S_01','Waste diverted from landfill','pct',null,'e.g. 60'),
+    V('S_02','Active composting program','bool'),
+    V('S_03','Zero-waste certified','bool'),
+    V('S_04','Compostable / recyclable packaging','pct',null,'e.g. 80'),
+    V('S_05','Single-use-plastic free','bool'),
+  ],
+  S2_2: [ // Energy & water (10)
+    V('S_06','Energy from renewable sources','pct',null,'e.g. 40'),
+    V('S_07','Solar installed','bool'),
+    V('S_08','ENERGY STAR equipment (count)','count',null,'e.g. 4'),
+    V('S_09','Year-over-year energy use change','trend',null,'− = improvement'),
+    V('S_10','Water-conservation measures in place','count',null,'0–3'),
+  ],
+  S2_3: [ // Sourcing & certs (10)
+    V('S_11','Tier-1 sustainability certifications held','count',null,'0–3+'),
+    V('S_12','Organic product share','pct',null,'food businesses'),
+    V('S_13','Fair Trade certified','bool'),
+    V('S_15','B Corp certified','bool'),
+  ],
+  T3_1: [ // Wages (12)
+    V('T_01','Staff paid at/above local living wage','pct',null,'e.g. 100'),
+    V('T_02','Living-wage certified','bool'),
+    V('T_03','Pay ratio (highest ÷ lowest paid)','count',null,'e.g. 4'),
+    V('T_04','Staff paid above minimum wage','pct',null,'e.g. 100'),
+    V('T_05','Year-over-year wage growth','trend',null,'e.g. 6'),
+  ],
+  T3_2: [ // Giving (10)
+    V('T_06','Charitable giving (% of revenue)','pct',null,'e.g. 1.5'),
+    V('T_07','1% for the Planet member','bool'),
+    V('T_08','Local nonprofits supported','count',null,'0–6+'),
+  ],
+  T3_3: [ // Disclosure (8)
+    V('T_09','Publish a revenue / impact breakdown','bool'),
+    V('T_10','Disclosure level','select',[['0','None'],['1','Wages only'],['2','Wages + giving'],['3','Partial P&L'],['4','Full breakdown']]),
+    V('T_12','Business credit score (Experian, if known)','count',null,'1–100'),
+    V('T_13','Supplier reference letters provided','count',null,'0–3+'),
+  ],
+};
+const GVARS = Object.values(GRANULAR).flat();
+
+const clamp=(x,a,b)=>Math.min(Math.max(x,a),b);
+// JS mirror of the Postgres compute_pillars() — keep in sync.
+function computePillars(g){
+  const N=(k)=>Number(g[k])||0;
+  const l11=( N('L_01')/100 + (N('L_02')/100)*0.75 + (N('L_03')/100)*0.40 + [0,0.25,0.5,0.75,1.0][Math.min(N('L_04'),4)] + Math.log(N('L_05')+1)/Math.log(51) )/5*12;
+  const l12=( N('L_06')/100 + Math.log(N('L_07')+1)/Math.log(501) + (N('L_08')/100)*0.60 )/3*10;
+  const l13=( ({1:1.0,2:0.75,3:0.45,4:0.25,5:0.05}[N('L_09')]??0.05) + (N('L_10')===1?1:0) + clamp(1-Math.exp(-0.131*N('L_11')),0,0.98) + (1-Math.min(N('L_12'),20)/20) )/4*10;
+  const l14=( ({1:1.0,2:0.75,3:0.40,4:0.0}[N('L_13')]??0) + (N('L_14')===1?1:0) + (N('L_15')===1?1:0) + [0,0.33,0.67,1.0][Math.min(N('L_16'),3)] + (N('L_17')===0?0:N('L_17')>=100?1.15:N('L_17')>=80?1.0:N('L_17')>=70?0.5:N('L_17')>=50?0:-0.2) + (N('L_18')===1?0.5:0) )/6*8;
+  const loc=clamp(l11+l12+l13+l14,0,40);
+  const s21=( N('S_01')/100 + (N('S_02')===1?1:0) + (N('S_03')===1?1:0) + (N('S_04')/100)*0.8 + (N('S_05')===1?1:0) )/5*10;
+  const s22=( N('S_06')/100 + (N('S_07')===1?1:0) + (N('S_08')>=6?1.0:N('S_08')>=3?0.67:N('S_08')>=1?0.33:0) + clamp((0.40-N('S_09')/100)/0.80,0,1) + [0,0.4,0.7,1.0][Math.min(N('S_10'),3)] )/5*10;
+  const s23=( (N('S_11')>=3?1.0:N('S_11')===2?0.78:N('S_11')===1?0.55:0) + N('S_12')/100 + (N('S_13')===1?1:0) + (N('S_15')===1?1:0) )/4*10;
+  const sus=clamp(s21+s22+s23,0,30);
+  const t31=( N('T_01')/100 + (N('T_02')===1?1:0) + (N('T_03')>=20?-0.1:N('T_03')>=10?0.2:N('T_03')>=6?0.5:N('T_03')>=3?0.8:N('T_03')>0?1.0:0) + (N('T_04')/100)*0.3 + clamp((N('T_05')/100+0.15)/0.45,0,1) )/5*12;
+  const t32=( (N('T_06')>=3?1.0:N('T_06')>=2?0.82:N('T_06')>=1?0.65:N('T_06')>=0.5?0.4:N('T_06')>0?0.2:0) + (N('T_07')===1?1:0) + (N('T_08')>=6?1.0:N('T_08')>=3?0.70:N('T_08')>=1?0.40:0) )/3*10;
+  const t33=( (N('T_09')===1?1:0) + [0,0.4,0.6,0.8,1.0][Math.min(N('T_10'),4)] )/2*8;
+  const trn=clamp(t31+t32+t33 + Math.max(0,(N('T_12')-25)/75) + (N('T_13')>=3?1.0:N('T_13')===2?0.67:N('T_13')===1?0.33:0), 0, 30);
+  return { loc:Math.round(loc*100)/100, sus:Math.round(sus*100)/100, trn:Math.round(trn*100)/100 };
+}
 
 /* ---------- Supabase connection (publishable key — safe in browser) ---------- */
 const SUPABASE_URL = "https://vjsosuuognevznjcjeux.supabase.co";
@@ -719,7 +826,6 @@ function identityHTML(){
 /* ---------- SCORE SECTION ---------- */
 function scoreHTML(s){
   const idx = scoreSections.indexOf(s)+1;
-  const ans = state.answers[s.id];
   const hasEv = state.evidence[s.id];
   const statsHTML = (s.why.stats||[]).map(x=>`<span class="why-stat">${x}</span>`).join('');
   return `
@@ -734,18 +840,8 @@ function scoreHTML(s){
     ${s.why.margin?`<div class="margin-flag">${trendIcon()} ${s.why.margin}</div>`:''}
   </div>
 
-  <div class="opt-label">Choose what fits best — be honest, you can improve any score over time</div>
-  <div class="opts" id="opts_${s.id}">
-    ${s.opts.map((o,i)=>`
-      <div class="opt ${ans===i?'sel':''}" onclick="pick('${s.id}',${i})">
-        <div class="opt-radio"></div>
-        <div class="opt-txt">
-          <div class="opt-main">${o.t}</div>
-          ${o.d?`<div class="opt-desc">${o.d}</div>`:''}
-        </div>
-        <div class="opt-pts">+${(o.p*s.max).toFixed(o.p*s.max%1===0?0:1)}</div>
-      </div>`).join('')}
-  </div>
+  <div class="opt-label">Fill in what you know — be honest. Blank counts as 0; you can refine anytime, and verified documents raise your score.</div>
+  <div class="gvars" id="gvars_${s.id}">${varsHTML(s)}</div>
 
   <div class="evidence">
     <div class="evidence-h">
@@ -781,12 +877,10 @@ function scoreHTML(s){
 function reviewHTML(){
   const { composite, tier } = computeScore();
   const rows = scoreSections.map(s=>{
-    const ans = state.answers[s.id];
-    const answered = ans!==undefined;
-    const pts = answered ? (s.opts[ans].p*s.max) : 0;
+    const engaged = sectionEngaged(s);
     return `<div class="review-row">
-      <div class="rr-check ${answered?'ok':'no'}">
-        ${answered
+      <div class="rr-check ${engaged?'ok':'no'}">
+        ${engaged
           ?'<svg viewBox="0 0 24 24" fill="none" style="color:#2c9c4c"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
           :'<svg viewBox="0 0 24 24" fill="none" style="color:#9AA0AB"><path d="M12 8v5M12 16v.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'}
       </div>
@@ -794,11 +888,11 @@ function reviewHTML(){
         <div class="rr-name">${s.label}</div>
         <div class="rr-tag">${s.tag}${state.evidence[s.id]?' · doc attached':' · no doc yet'}</div>
       </div>
-      <div class="rr-pts" style="margin-left:auto">${answered?pts.toFixed(pts%1===0?0:1):'—'} / ${s.max}</div>
+      <div class="rr-pts" style="margin-left:auto">${engaged?'✓':'—'} / ${s.max}</div>
     </div>`;
   }).join('');
 
-  const allAnswered = scoreSections.every(s=>state.answers[s.id]!==undefined);
+  const allAnswered = true; // every variable is optional (blank = 0); identity + address are required earlier
 
   return `
   <span class="sec-tag tag-id">Final step · Review</span>
@@ -832,16 +926,7 @@ function reviewHTML(){
    SCORING ENGINE
    ============================================================ */
 function computeScore(){
-  let loc=0,sus=0,trn=0;
-  scoreSections.forEach(s=>{
-    const ans = state.answers[s.id];
-    if(ans===undefined) return;
-    const pts = s.opts[ans].p * s.max;
-    if(s.pillar==='loc') loc+=pts;
-    else if(s.pillar==='sus') sus+=pts;
-    else trn+=pts;
-  });
-  loc=Math.min(loc,40); sus=Math.min(sus,30); trn=Math.min(trn,30);
+  const { loc, sus, trn } = computePillars(state.g);
   const composite = loc+sus+trn;
   return { loc, sus, trn, composite, tier:tierName(composite) };
 }
@@ -857,7 +942,7 @@ function tierName(score){
 function updateScore(){
   const { loc, sus, trn, composite, tier } = computeScore();
   const ls = document.getElementById('liveScore');
-  const answered = Object.keys(state.answers).length>0;
+  const answered = Object.keys(state.g).length>0;
   if(answered){
     ls.classList.add('scoring');
     ls.innerHTML = `${composite.toFixed(1)}<span class="pt">/100</span>`;
@@ -879,13 +964,13 @@ function updateScore(){
    ============================================================ */
 function isComplete(i){
   const s = SECTIONS[i];
-  if(s.kind==='score') return state.answers[s.id]!==undefined;
+  if(s.kind==='score') return sectionEngaged(s);
   if(s.kind==='identity') return !!state.identity.name && !!state.identity.cat;
   return false;
 }
 function updateProgress(){
   const total = scoreSections.length + 1; // +identity
-  let done = scoreSections.filter(s=>state.answers[s.id]!==undefined).length;
+  let done = scoreSections.filter(sectionEngaged).length;
   if(state.identity.name && state.identity.cat) done++;
   const pct = Math.round(done/total*100);
   document.getElementById('progFill').style.width = pct+'%';
@@ -895,11 +980,41 @@ function updateProgress(){
 /* ============================================================
    INTERACTIONS
    ============================================================ */
-function pick(id,i){
-  state.answers[id]=i;
-  document.querySelectorAll(`#opts_${id} .opt`).forEach((el,n)=>el.classList.toggle('sel',n===i));
+function varsHTML(s){
+  return (GRANULAR[s.id]||[]).map(v=>{
+    const val = state.g[v.id];
+    if(v.type==='bool'){
+      return `<div class="gvar"><span class="gv-label">${v.label}</span>
+        <span class="gv-toggle">
+          <button type="button" id="gt_${v.id}_1" class="gt ${val===1?'on':''}" onclick="setBool('${v.id}',1)">Yes</button>
+          <button type="button" id="gt_${v.id}_0" class="gt ${val===0?'on':''}" onclick="setBool('${v.id}',0)">No</button>
+        </span></div>`;
+    }
+    if(v.type==='select'){
+      return `<div class="gvar"><span class="gv-label">${v.label}</span>
+        <select class="gv-input" onchange="setG('${v.id}',this.value)">
+          <option value="">Select…</option>
+          ${v.opts.map(([ov,ol])=>`<option value="${ov}" ${String(val)===String(ov)?'selected':''}>${ol}</option>`).join('')}
+        </select></div>`;
+    }
+    const unit = (v.type==='pct'||v.type==='trend')?'%':'';
+    return `<div class="gvar"><span class="gv-label">${v.label}</span>
+      <span class="gv-numwrap"><input class="gv-input gv-num" type="number" inputmode="decimal" value="${val!==undefined?val:''}" placeholder="${v.hint||''}" oninput="setG('${v.id}',this.value)">${unit?`<span class="gv-unit">${unit}</span>`:''}</span></div>`;
+  }).join('');
+}
+function setG(id,val){
+  if(val===''||val===null||val===undefined) delete state.g[id];
+  else state.g[id]=Number(val);
+  updateScore(); renderStepNav(); updateProgress();   // no full re-render → keeps input focus
+}
+function setBool(id,val){
+  state.g[id]=val;
+  const on=document.getElementById('gt_'+id+'_1'), off=document.getElementById('gt_'+id+'_0');
+  if(on) on.classList.toggle('on',val===1);
+  if(off) off.classList.toggle('on',val===0);
   updateScore(); renderStepNav(); updateProgress();
 }
+function sectionEngaged(s){ return (GRANULAR[s.id]||[]).some(v=>state.g[v.id]!==undefined); }
 // One folder per assessment session, namespaced under the owner's user id.
 const UPLOAD_BATCH = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8);
 async function uploadEvidence(id, input){
@@ -996,7 +1111,7 @@ async function submitForm(){
     address:    state.identity.address || null,
     lat:        geo.lat,
     lng:        geo.lng,
-    answers:    state.answers,
+    answers:    state.g,
     evidence:   state.evidence,
     score_loc:  Number(loc.toFixed(2)),
     score_sus:  Number(sus.toFixed(2)),
