@@ -1597,7 +1597,7 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
             <div style={{ marginTop: 6 }}><Tag color={statusColor}>{r.status}</Tag></div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <ScoreBadge score={Math.round(Number(r.score_total))} size={46} />
+            <ScoreBadge score={Math.floor(Number(r.score_total))} size={46} />
             <div style={{ fontFamily: F.mono, fontSize: 8, color: C.soft, marginTop: 3 }}>{r.tier}</div>
           </div>
         </div>
@@ -1916,7 +1916,7 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
 
   // Real data when the owner has a submission; sample data otherwise (e.g. the gallery).
   const bizName = sub ? sub.business_name : "Maria's Soap Studio";
-  const total   = sub ? Math.round(Number(sub.score_total)) : 91;
+  const total   = sub ? Math.floor(Number(sub.score_total)) : 91;
   const tier    = sub ? sub.tier : "Community Champion";
   const isVerified = sub ? sub.status === "verified" : true;
   const isBasic = sub ? sub.status === "basic" : false;
@@ -2122,7 +2122,7 @@ function BizStatsScreen({ go = () => {}, session = null }) {
   const sub = mine.sub;
   const notice = bizStateScreen({ mine, session, active: "bizStats", go, title: "YOUR STATS" });
   if (notice) return notice;
-  const total = Math.round(Number(sub.score_total));
+  const total = Math.floor(Number(sub.score_total));
   const verified = sub.status === "verified";
   const submitted = sub.created_at ? new Date(sub.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
   return (
@@ -2175,7 +2175,7 @@ function BizImproveScreen({ go = () => {}, session = null }) {
   const sub = mine.sub;
   const notice = bizStateScreen({ mine, session, active: "bizImprove", go, title: "IMPROVE" });
   if (notice) return notice;
-  const total = Math.round(Number(sub.score_total));
+  const total = Math.floor(Number(sub.score_total));
   const next = nextTierUp(total);
   const ranked = pillarHeadroom(sub); // weakest pillar first
   const weakest = ranked[0];
@@ -2235,7 +2235,7 @@ function BizProfileScreen({ go = () => {}, session = null }) {
   const sub = mine.sub;
   const notice = bizStateScreen({ mine, session, active: "bizProfile", go, title: "PROFILE" });
   if (notice) return notice;
-  const total = Math.round(Number(sub.score_total));
+  const total = Math.floor(Number(sub.score_total));
   const verified = sub.status === "verified";
   const maskEin = sub.ein ? `••• •• ${String(sub.ein).slice(-4)}` : "—";
   const signOut = () => { supabase && supabase.auth.signOut(); go("welcome"); };
@@ -2313,7 +2313,12 @@ function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
   const [msg, setMsg] = useState(null);
   const [done, setDone] = useState(null); // { score }
 
-  const score = BASIC_QUESTIONS.reduce((s, q, i) => s + (ans[i] ? q[2] : 0), 0);
+  // CEIS™ v3: unverified self-declaration is Evidence Tier 5 → multiplier 0.550,
+  // and the Free Tier integer uses floor() (never rounds up a tier). So a Basic
+  // score is always a WHOLE number and structurally lower than a verified score.
+  const SELF_REPORT_MULTIPLIER = 0.55;
+  const claimed = BASIC_QUESTIONS.reduce((s, q, i) => s + (ans[i] ? q[2] : 0), 0); // 0–100 claimed
+  const score = Math.floor(claimed * SELF_REPORT_MULTIPLIER); // 0–55, whole number
 
   if (!session) {
     return (
@@ -2399,9 +2404,18 @@ function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
           </div>
         ))}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0 4px" }}>
-          <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.mid }}>Your Basic score</span>
-          <span style={{ fontFamily: F.serif, fontSize: 26, fontWeight: 700, color: C.ink }}>{score}<span style={{ fontSize: 13, color: C.soft }}>/100</span></span>
+        <div style={{ background: C.bg, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: F.body, fontSize: 12, color: C.soft }}>Claimed basics</span>
+            <span style={{ fontFamily: F.mono, fontSize: 13, fontWeight: 700, color: C.soft }}>{claimed}/100</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+            <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.ink }}>Your Basic score</span>
+            <span style={{ fontFamily: F.serif, fontSize: 26, fontWeight: 700, color: C.basic }}>{score}<span style={{ fontSize: 13, color: C.soft }}>/100</span></span>
+          </div>
+          <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft, lineHeight: 1.45, marginTop: 8 }}>
+            Self-reported claims count at <strong>55%</strong> until independently verified (CEIS™ Evidence Tier 5). A verified assessment unlocks your full score — always higher than a Basic one.
+          </div>
         </div>
 
         {msg && <div style={{ fontFamily: F.body, fontSize: 11.5, color: msg.type === "err" ? C.red : C.green, margin: "6px 0" }}>{msg.text}</div>}
