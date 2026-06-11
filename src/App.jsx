@@ -29,6 +29,7 @@ const C = {
   red:     "#C0392B",
   green:   "#1A8F45",
   amber:   "#E8A820",
+  basic:   "#8B5CF6", // self-reported (non-verified, free) — a distinct violet
 };
 
 // Apple-style typography: real San Francisco on macOS, Inter as the web fallback.
@@ -234,6 +235,7 @@ function rowToBiz(r) {
     loc: r.loc, sus: r.sus, trn: r.trn,
     hood: r.neighborhood,
     verified: r.verified,
+    basic: r.basic || false,
     emoji: r.emoji || "🏬",
     local: Number(r.local_per_10) || 0,
     distance: r.distance || "",
@@ -679,16 +681,18 @@ function MapboxMap({ businesses, selectedId, onSelect, userLat, userLng }) {
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
     pts.forEach(b => {
-      const col = scoreColor(b.score);
-      const pending = !b.verified; // not yet verified by Dollar Vote → show faded
+      const basic = !!b.basic;          // free self-reported → neutral grey pin
+      const pending = !basic && !b.verified; // full submission, awaiting review → faded ⏳
+      const col = basic ? C.basic : scoreColor(b.score);
       const el = document.createElement("div");
-      el.title = pending ? "Pending Dollar Vote verification" : "Dollar Vote verified";
+      el.title = basic ? "Basic · self-reported (free)" : pending ? "Pending Dollar Vote verification" : "Dollar Vote verified";
       el.style.cssText = `cursor:pointer;background:#fff;border:2px ${pending ? "dashed" : "solid"} ${col};border-radius:10px;
-        padding:3px 7px;box-shadow:0 3px 8px rgba(0,0,0,${pending ? ".12" : ".25"});font-family:${F.serif};
+        padding:3px 7px;box-shadow:0 3px 8px rgba(0,0,0,${pending ? ".12" : ".22"});font-family:${F.serif};
         font-weight:700;font-size:13px;color:${col};line-height:1;opacity:${pending ? "0.5" : "1"};
         display:flex;align-items:center;gap:3px;`;
       el.textContent = b.score;
       if (pending) { const c = document.createElement("span"); c.textContent = "⏳"; c.style.cssText = "font-size:9px;"; el.appendChild(c); }
+      if (basic) { const c = document.createElement("span"); c.textContent = "ⓘ"; c.style.cssText = "font-size:10px;opacity:.7;"; el.appendChild(c); }
       el.addEventListener("click", (e) => { e.stopPropagation(); onSelect(b); });
       const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([Number(b.lng), Number(b.lat)])
@@ -822,7 +826,9 @@ function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { p
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.name}</div>
                 <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{sel.hood || sel.cat}{sel.distance ? ` · ${sel.distance}` : ""}</div>
-                {sel.verified
+                {sel.basic
+                  ? <Tag color={C.basic}>ⓘ {sel.score}/100 · BASIC (SELF-REPORTED)</Tag>
+                  : sel.verified
                   ? <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
                   : <Tag color={C.amber}>⏳ {sel.score}/100 · PENDING</Tag>}
               </div>
@@ -870,7 +876,9 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>{b.emoji || "🏬"}</div>
           <div style={{ flex: 1 }}>
-            {b.verified
+            {b.basic
+              ? <Tag color={C.white} bg="rgba(139,92,246,0.85)" outline>ⓘ BASIC · SELF-REPORTED</Tag>
+              : b.verified
               ? <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>✓ DOLLARVOTE VERIFIED</Tag>
               : <Tag color={C.amber} bg="rgba(232,168,32,0.18)" outline>⏳ PENDING VERIFICATION</Tag>}
             <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, marginTop: 4, lineHeight: 1.1 }}>{b.name}</div>
@@ -1744,7 +1752,7 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
   const [payMsg, setPayMsg] = useState(null);
 
   const tiers = [
-    { key: "free",    name: "Free", price: "$0", per: "forever", color: C.mid, popular: false, features: ["Basic profile", "Score published", "QR scorecard", "Map listing"] },
+    { key: "free",    name: "Free", price: "$0", per: "forever", color: C.mid, popular: false, features: ["Basic self-reported score", "Posted on the map instantly", "No documents or review", "Upgrade to verified anytime"] },
     { key: "starter", name: "Starter", price: "$29", per: "/mo", color: C.blue, popular: false, features: ["Everything in Free", "Score assessment", "Peer benchmarks", "Improvement roadmap"] },
     { key: "growth",  name: "Growth", price: "$59", per: "/mo", color: C.teal, popular: true, features: ["Everything in Starter", "Verified badge", "Priority placement", "Review responses", "Story page"] },
     { key: "premium", name: "Premium", price: "$99", per: "/mo", color: C.lime, popular: false, features: ["Everything in Growth", "Full analytics", "Demographic data", "API access", "Account manager"] },
@@ -1752,8 +1760,8 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
 
   async function choose(t) {
     if (!session) { go("auth"); return; }
-    // Free tier: no payment — go straight to the assessment.
-    if (t.key === "free") { openAssessment(); go("bizDashboard"); return; }
+    // Free tier: the quick self-reported Basic score (auto-posts to the map).
+    if (t.key === "free") { go("basicScore"); return; }
     if (!supabase) { setPayMsg("No database connection."); return; }
     setBusyTier(t.key); setPayMsg(null);
     try {
@@ -1911,7 +1919,9 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
   const total   = sub ? Math.round(Number(sub.score_total)) : 91;
   const tier    = sub ? sub.tier : "Community Champion";
   const isVerified = sub ? sub.status === "verified" : true;
+  const isBasic = sub ? sub.status === "basic" : false;
   const statusLabel = !sub ? "✓ COMMUNITY CHAMPION · VERIFIED"
+    : isBasic ? "ⓘ BASIC · SELF-REPORTED"
     : isVerified ? `✓ ${(tier || "").toUpperCase()} · VERIFIED`
     : `⏳ ${(tier || "").toUpperCase()} · UNDER REVIEW`;
 
@@ -1958,20 +1968,20 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
 
         {/* Score hero (real when available) */}
         <div style={{ background: GRAD, color: C.white, borderRadius: 16, padding: 18, marginBottom: 12, position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>{isVerified ? "🏆" : "⏳"}</div>
-          <Tag color={C.lime} bg="rgba(125,200,50,0.2)" outline>{statusLabel}</Tag>
+          <div style={{ position: "absolute", right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>{isBasic ? "ⓘ" : isVerified ? "🏆" : "⏳"}</div>
+          <Tag color={isBasic ? C.white : C.lime} bg={isBasic ? "rgba(139,92,246,0.85)" : "rgba(125,200,50,0.2)"} outline>{statusLabel}</Tag>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
             <ScoreBadge score={total} size={62} />
             <div>
               <div style={{ fontFamily: F.serif, fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{total}</div>
               <div style={{ fontFamily: F.body, fontSize: 10, opacity: 0.85, marginTop: 2 }}>
                 {sub
-                  ? (isVerified ? "Verified & live in the directory" : "Projected — pending verification")
+                  ? (isBasic ? "Self-reported — live on the map" : isVerified ? "Verified & live in the directory" : "Projected — pending verification")
                   : "↑ 4 pts since last quarter"}
               </div>
             </div>
           </div>
-          {sub && (
+          {sub && !isBasic && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
               {[["Locality", sub.score_loc, 40], ["Sustainability", sub.score_sus, 30], ["Transparency", sub.score_trn, 30]].map(([lbl, v, max]) => (
                 <div key={lbl} style={{ flex: 1, background: "rgba(255,255,255,0.14)", borderRadius: 8, padding: "7px 8px" }}>
@@ -1979,6 +1989,12 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
                   <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, lineHeight: 1.1 }}>{Math.round(Number(v))}<span style={{ fontSize: 9, opacity: 0.7 }}>/{max}</span></div>
                 </div>
               ))}
+            </div>
+          )}
+          {sub && isBasic && (
+            <div onClick={() => go("bizPricing")} style={{ marginTop: 12, background: "rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, fontFamily: F.body, fontSize: 11, lineHeight: 1.4 }}>This is a self-reported score. <strong>Upgrade to a verified CEIS™ score</strong> for a premium badge.</div>
+              <span style={{ color: C.lime, fontWeight: 700 }}>→</span>
             </div>
           )}
         </div>
@@ -2267,6 +2283,138 @@ function BizProfileScreen({ go = () => {}, session = null }) {
   );
 }
 
+// Geocode a free-text address to {lat,lng} via Mapbox (best-effort, returns nulls on failure).
+async function geocodeAddress(address) {
+  if (!address || !MAPBOX_TOKEN) return { lat: null, lng: null };
+  try {
+    const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?limit=1&country=us,ca,mx&access_token=${MAPBOX_TOKEN}`);
+    if (!r.ok) return { lat: null, lng: null };
+    const d = await r.json();
+    const f = d.features && d.features[0];
+    if (f && Array.isArray(f.center)) return { lat: f.center[1], lng: f.center[0] };
+  } catch (e) { /* offline — fall through */ }
+  return { lat: null, lng: null };
+}
+
+// SCREEN — Free "Basic" self-reported score (non-algorithmic). Auto-posts to the map.
+const BASIC_QUESTIONS = [
+  ["Independently or locally owned?", "Not a national chain or franchise", 25],
+  ["Buy supplies from local or regional sources?", "At least some of your inventory or ingredients", 20],
+  ["Pay your team at or above a living wage?", "Fair pay for your area", 20],
+  ["Any sustainability practices?", "Recycling, less waste, energy savings, etc.", 20],
+  ["Active in your local community?", "Events, donations, partnerships", 15],
+];
+function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
+  const [name, setName] = useState("");
+  const [cat, setCat] = useState("");
+  const [address, setAddress] = useState("");
+  const [ans, setAns] = useState(BASIC_QUESTIONS.map(() => false));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [done, setDone] = useState(null); // { score }
+
+  const score = BASIC_QUESTIONS.reduce((s, q, i) => s + (ans[i] ? q[2] : 0), 0);
+
+  if (!session) {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, padding: 24, justifyContent: "center", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 10 }}>🔐</div>
+        <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Log in to get your free score</div>
+        <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, marginBottom: 18 }}>Create a free business account, then claim your Basic score.</div>
+        <button onClick={() => go("auth")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer" }}>Log in →</button>
+      </div>
+    );
+  }
+
+  async function submit() {
+    if (!supabase) { setMsg({ type: "err", text: "No connection." }); return; }
+    if (!name.trim() || !cat) { setMsg({ type: "err", text: "Add your business name and category." }); return; }
+    if (!address.trim() || address.trim().length < 6) { setMsg({ type: "err", text: "Add your business address so we can place you on the map." }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const geo = await geocodeAddress(address);
+      const ref = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8).toUpperCase();
+      const answers = {}; BASIC_QUESTIONS.forEach((q, i) => { answers["b" + i] = ans[i]; });
+      const { error } = await supabase.from("ceis_submissions").insert({
+        user_id: session.user.id,
+        business_name: name.trim(), category: cat, address: address.trim(),
+        lat: geo.lat, lng: geo.lng,
+        answers, evidence: {},
+        score_loc: 0, score_sus: 0, score_trn: 0, score_total: score,
+        tier: "Basic", status: "basic", ref_code: ref,
+      });
+      if (error) throw error;
+      setDone({ score, located: geo.lat != null });
+    } catch (e) {
+      setMsg({ type: "err", text: e.message || "Something went wrong." });
+    } finally { setBusy(false); }
+  }
+
+  if (done) {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflowY: "auto", padding: 24, textAlign: "center", justifyContent: "center" }}>
+        <div style={{ width: 96, height: 96, borderRadius: "50%", border: `3px solid ${C.basic}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", background: C.white }}>
+          <div style={{ fontFamily: F.serif, fontSize: 34, fontWeight: 700, color: C.basic, lineHeight: 1 }}>{done.score}</div>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft }}>/100</div>
+        </div>
+        <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 6 }}>You're on the map!</div>
+        <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, lineHeight: 1.55, maxWidth: 320, margin: "0 auto 20px" }}>
+          Your <strong>Basic · self-reported</strong> score is live. {done.located ? "Shoppers can find you now." : "Add a clearer address later to pin your exact spot."} Upgrade anytime to a <strong>verified CEIS™</strong> score for a premium, trust-building badge.
+        </div>
+        <button onClick={() => go("map")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 10 }}>See me on the map →</button>
+        <button onClick={() => go("bizPricing")} style={{ background: C.white, color: C.ink, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px", border: `1px solid ${C.border}`, borderRadius: 12, cursor: "pointer" }}>Upgrade to a verified score</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, overflowY: "auto" }}>
+      <div style={{ padding: "18px 22px 8px" }}>
+        <span onClick={() => back()} style={{ fontSize: 13, color: C.soft, cursor: "pointer" }}>← Back</span>
+        <Tag color={C.basic}>FREE · BASIC SCORE</Tag>
+        <div style={{ fontFamily: F.serif, fontSize: 23, fontWeight: 700, color: C.ink, lineHeight: 1.1, marginTop: 8 }}>Get on the map in a minute</div>
+        <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, marginTop: 6, lineHeight: 1.5 }}>
+          A quick self-report — no documents, no review. It posts a <strong>Basic · self-reported</strong> pin instantly. (Want the premium verified CEIS™ score? That's the full assessment.)
+        </div>
+      </div>
+
+      <div style={{ padding: "8px 22px 22px" }}>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Business name" style={inpBasic} />
+        <select value={cat} onChange={e => setCat(e.target.value)} style={{ ...inpBasic, color: cat ? C.ink : C.soft }}>
+          <option value="">Choose a category…</option>
+          {["Restaurant", "Café", "Grocery", "Retail", "Services", "Wellness", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Street address (places you on the map)" style={inpBasic} />
+
+        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", margin: "14px 0 8px" }}>YOUR BASICS · TAP WHAT'S TRUE</div>
+        {BASIC_QUESTIONS.map((q, i) => (
+          <div key={i} onClick={() => setAns(a => a.map((v, n) => n === i ? !v : v))}
+            style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginBottom: 8, borderRadius: 12, cursor: "pointer", border: `1.5px solid ${ans[i] ? C.teal : C.border}`, background: ans[i] ? C.ltTeal : C.white }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, background: ans[i] ? C.teal : C.white, border: `1.5px solid ${ans[i] ? C.teal : C.border}`, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>{ans[i] ? "✓" : ""}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.ink }}>{q[0]}</div>
+              <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{q[1]}</div>
+            </div>
+            <div style={{ fontFamily: F.mono, fontSize: 11, fontWeight: 700, color: ans[i] ? C.teal : C.soft }}>+{q[2]}</div>
+          </div>
+        ))}
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0 4px" }}>
+          <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: C.mid }}>Your Basic score</span>
+          <span style={{ fontFamily: F.serif, fontSize: 26, fontWeight: 700, color: C.ink }}>{score}<span style={{ fontSize: 13, color: C.soft }}>/100</span></span>
+        </div>
+
+        {msg && <div style={{ fontFamily: F.body, fontSize: 11.5, color: msg.type === "err" ? C.red : C.green, margin: "6px 0" }}>{msg.text}</div>}
+
+        <button onClick={submit} disabled={busy} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "14px", border: "none", borderRadius: 12, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1, marginTop: 8 }}>
+          {busy ? "Posting…" : "Post my free Basic score →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+const inpBasic = { width: "100%", fontFamily: F.body, fontSize: 14, color: C.ink, background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", marginBottom: 10, outline: "none", boxSizing: "border-box" };
+
 // ═════════════════════════════════════════════════════════
 // SCREEN REGISTRY
 // ═════════════════════════════════════════════════════════
@@ -2282,6 +2430,7 @@ const SCREENS = {
   bizWelcome:    { flow: "business", screen: "07 · BIZ WELCOME",   label: "Why your DollarVote score is worth pursuing",        render: (nav) => <BizWelcomeScreen {...nav} /> },
   auth:          { flow: "business", screen: "08 · ACCOUNT",       label: "Sign up or log in as a business owner",              render: (nav, data) => <AuthScreen {...nav} session={data.session} /> },
   bizPricing:    { flow: "business", screen: "09 · PRICING",       label: "Tier selector — Free / Starter / Growth / Premium",  render: (nav, data) => <BizPricingScreen {...nav} session={data.session} /> },
+  basicScore:    { flow: "business", screen: "09b · BASIC SCORE",  label: "Free self-reported Basic score — auto-posts to the map", render: (nav, data) => <BasicScoreScreen {...nav} session={data.session} /> },
   bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} /> },
   bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} /> },
   bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },
@@ -2290,7 +2439,7 @@ const SCREENS = {
 };
 
 const CONSUMER_ORDER = ["welcome", "shopperWelcome", "consumerHome", "map", "categories", "profile", "impact", "shopperJoin"];
-const BUSINESS_ORDER = ["bizWelcome", "auth", "bizPricing", "bizDashboard", "bizStats", "bizImprove", "bizProfile"];
+const BUSINESS_ORDER = ["bizWelcome", "auth", "bizPricing", "basicScore", "bizDashboard", "bizStats", "bizImprove", "bizProfile"];
 
 // ═════════════════════════════════════════════════════════
 // INTERACTIVE PROTOTYPE — single phone with real navigation
