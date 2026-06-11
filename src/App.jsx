@@ -1508,6 +1508,36 @@ function AuthScreen({ go = () => {}, back = () => {}, session = null }) {
 function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
   const [state, setState] = useState({ phase: "loading", rows: [], isAdmin: false });
   const [busyId, setBusyId] = useState(null);
+  const [inputs, setInputs] = useState({});   // per-submission trust inputs (evidence tiers + identity)
+  const [preview, setPreview] = useState({});  // per-submission computed CEIS preview
+
+  // Documents on a submission, as [key, value] pairs (value may be {name,path} or a string).
+  const docsOf = (r) => (r.evidence && typeof r.evidence === "object" ? Object.entries(r.evidence).filter(([, v]) => v) : []);
+  // Default trust inputs derived from what we already know about the submission.
+  const defaultRI = (r) => ({
+    docTiers: Object.fromEntries(docsOf(r).map(([k]) => [k, 3])),     // uploaded doc → Tier 3 until reviewed
+    certCount: 0,
+    identity: { duns: false, ein: !!r.ein, sos: r.reg_state ? "pending" : "no", dbr: false, license: "pending" },
+  });
+  const riFor = (r) => inputs[r.id] || defaultRI(r);
+  const setRI = (r, patch) => setInputs((m) => ({ ...m, [r.id]: { ...riFor(r), ...patch } }));
+  const setIdentity = (r, patch) => setRI(r, { identity: { ...riFor(r).identity, ...patch } });
+  // Convert UI state → the engine's review payload.
+  const toReview = (r) => {
+    const ri = riFor(r);
+    return {
+      doc_tiers: docsOf(r).map(([k]) => Number(ri.docTiers[k] || 5)),
+      cert_count: Number(ri.certCount || 0),
+      identity: ri.identity,
+    };
+  };
+  async function doPreview(r) {
+    const { data, error } = await supabase.rpc("preview_ceis", {
+      p_loc: r.score_loc, p_sus: r.score_sus, p_trn: r.score_trn, p_cat: r.category, p_review: toReview(r),
+    });
+    if (!error && data) setPreview((p) => ({ ...p, [r.id]: data }));
+    else alert("Preview failed: " + (error?.message || "unknown"));
+  }
 
   async function load() {
     if (!supabase) { setState({ phase: "noconn", rows: [], isAdmin: false }); return; }
@@ -1515,7 +1545,7 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     // Admins can read all submissions; non-admins get nothing back (RLS).
     const { data, error } = await supabase
       .from("ceis_submissions")
-      .select("id, business_name, category, ein, reg_state, address, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at, answers, evidence")
+      .select("id, business_name, category, ein, reg_state, address, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at, answers, evidence, ceis_em, ceis_daf, ceis_ics")
       .order("created_at", { ascending: false });
     if (error) { setState({ phase: "error", rows: [], isAdmin: false, err: error.message }); return; }
     // Confirm admin explicitly (so we can show a clear "not authorized" message).
@@ -1525,14 +1555,15 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [session]);
 
-  async function setStatus(id, status) {
+  async function setStatus(id, fields) {
     setBusyId(id);
-    await supabase.from("ceis_submissions").update({ status }).eq("id", id);
+    await supabase.from("ceis_submissions").update(fields).eq("id", id);
     await load();
     setBusyId(null);
   }
-  const approve = (id) => setStatus(id, "verified");
-  const reject  = (id) => { if (confirm("Reject this submission? Its pin will be removed from the map.")) setStatus(id, "rejected"); };
+  // Approve = save the admin's trust inputs + flip to verified (trigger runs the CEIS engine).
+  const approve = (r) => setStatus(r.id, { review_inputs: toReview(r), status: "verified" });
+  const reject  = (id) => { if (confirm("Reject this submission? Its pin will be removed from the map.")) setStatus(id, { status: "rejected" }); };
 
   // Open an uploaded evidence document via a short-lived signed URL (admins can read all).
   async function openDoc(path) {
@@ -1571,8 +1602,9 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     <button onClick={() => go("auth")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px 20px", border: "none", borderRadius: 12, cursor: "pointer" }}>Log in →</button>);
   if (state.phase === "error" || !state.isAdmin) return note("🚫", "Not authorized", "This account isn't an admin. Ask an existing admin to add you.");
 
-  const pending  = state.rows.filter(r => r.status !== "verified" && r.status !== "rejected");
+  const pending  = state.rows.filter(r => r.status !== "verified" && r.status !== "rejected" && r.status !== "basic");
   const done     = state.rows.filter(r => r.status === "verified");
+  const basicList= state.rows.filter(r => r.status === "basic");
   const rejected = state.rows.filter(r => r.status === "rejected");
 
   const row = (label, value) => (
@@ -1632,19 +1664,75 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
               })}
         </div>
 
-        {/* Actions (pending only) */}
-        {r.status !== "verified" && r.status !== "rejected" && (
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-            <button onClick={() => approve(r.id)} disabled={busyId === r.id} style={{
-              flex: 1, background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700,
-              padding: "10px", border: "none", borderRadius: 10, cursor: busyId === r.id ? "wait" : "pointer", opacity: busyId === r.id ? 0.7 : 1,
-            }}>{busyId === r.id ? "Working…" : "✓ Approve & publish"}</button>
-            <button onClick={() => reject(r.id)} disabled={busyId === r.id} style={{
-              background: C.white, color: C.red, fontFamily: F.body, fontSize: 12, fontWeight: 700,
-              padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: busyId === r.id ? "wait" : "pointer",
-            }}>Reject</button>
+        {/* Verified-score record (after approval) */}
+        {r.status === "verified" && (r.ceis_em != null) && (
+          <div style={{ marginTop: 12, background: C.ltLime, borderRadius: 10, padding: "8px 12px", display: "flex", gap: 14, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: F.mono, fontSize: 9.5, color: C.green }}>CEIS {Number(r.score_total).toFixed(1)}</span>
+            <span style={{ fontFamily: F.mono, fontSize: 9.5, color: C.mid }}>EM {Number(r.ceis_em).toFixed(3)}</span>
+            <span style={{ fontFamily: F.mono, fontSize: 9.5, color: C.mid }}>DAF {Number(r.ceis_daf).toFixed(2)}</span>
+            <span style={{ fontFamily: F.mono, fontSize: 9.5, color: C.mid }}>ICS {Number(r.ceis_ics).toFixed(2)}</span>
           </div>
         )}
+
+        {/* Trust inputs + CEIS engine (pending verified-track only) */}
+        {r.status !== "verified" && r.status !== "rejected" && r.status !== "basic" && (() => {
+          const ri = riFor(r); const pv = preview[r.id];
+          const sel = { fontFamily: F.body, fontSize: 11, color: C.ink, background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 7px", outline: "none" };
+          const idRow = (label, ctrl) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0" }}><span style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid }}>{label}</span>{ctrl}</div>;
+          const toggle = (on, fn) => <span onClick={fn} style={{ fontFamily: F.mono, fontSize: 10, fontWeight: 700, color: on ? C.white : C.soft, background: on ? C.green : C.white, border: `1px solid ${on ? C.green : C.border}`, borderRadius: 20, padding: "3px 12px", cursor: "pointer" }}>{on ? "✓ YES" : "NO"}</span>;
+          const triSel = (val, fn) => <select value={val} onChange={e => fn(e.target.value)} style={sel}><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="no">No</option></select>;
+          return (
+            <div style={{ marginTop: 14, background: C.bg, borderRadius: 12, padding: 12 }}>
+              <div style={{ fontFamily: F.mono, fontSize: 9, color: C.blue, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 8 }}>⚙ CEIS™ TRUST INPUTS</div>
+
+              {/* Evidence tiers per document */}
+              <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft, marginBottom: 6 }}>Evidence tier per document</div>
+              {docEntries.length === 0
+                ? <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft, marginBottom: 6 }}>No documents — scores as self-reported (Tier 5, ×0.55).</div>
+                : docEntries.map(([qid, v]) => {
+                    const name = v && typeof v === "object" ? v.name : String(v);
+                    return (
+                      <div key={qid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "3px 0" }}>
+                        <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>📎 {name}</span>
+                        <select value={ri.docTiers[qid] || 3} onChange={e => setRI(r, { docTiers: { ...ri.docTiers, [qid]: Number(e.target.value) } })} style={sel}>
+                          <option value={1}>T1 · Certified ×1.15</option>
+                          <option value={2}>T2 · Financial ×1.05</option>
+                          <option value={3}>T3 · Records ×1.00</option>
+                          <option value={4}>T4 · Attested ×0.75</option>
+                          <option value={5}>T5 · Unverified ×0.55</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+              {idRow("Tier-1 certifications held", <input type="number" min="0" max="9" value={ri.certCount} onChange={e => setRI(r, { certCount: e.target.value })} style={{ ...sel, width: 52, textAlign: "center" }} />)}
+
+              {/* Identity signals */}
+              <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft, margin: "8px 0 2px" }}>Identity verification</div>
+              {idRow("EIN confirmed", toggle(ri.identity.ein, () => setIdentity(r, { ein: !ri.identity.ein })))}
+              {idRow("Secretary of State", triSel(ri.identity.sos, (val) => setIdentity(r, { sos: val })))}
+              {idRow("D&B DUNS verified", toggle(ri.identity.duns, () => setIdentity(r, { duns: !ri.identity.duns })))}
+              {idRow("D&B credit report", toggle(ri.identity.dbr, () => setIdentity(r, { dbr: !ri.identity.dbr })))}
+              {idRow("Business license", triSel(ri.identity.license, (val) => setIdentity(r, { license: val })))}
+
+              {/* Preview result */}
+              {pv && (
+                <div style={{ marginTop: 10, background: C.white, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontFamily: F.serif, fontSize: 24, fontWeight: 700, color: scoreColor(Number(pv.ceis)) }}>{Number(pv.ceis).toFixed(1)}</span>
+                    <span style={{ fontFamily: F.body, fontSize: 11, color: C.mid }}>{pv.tier} · publishes as {Math.floor(Number(pv.ceis))}</span>
+                  </div>
+                  <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, marginTop: 4 }}>composite {pv.composite} × EM {pv.em} × DAF {pv.daf} × ICS {pv.ics}</div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button onClick={() => doPreview(r)} style={{ background: C.white, color: C.blue, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px 14px", border: `1px solid ${C.blue}`, borderRadius: 10, cursor: "pointer" }}>Calculate</button>
+                <button onClick={() => approve(r)} disabled={busyId === r.id} style={{ flex: 1, background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px", border: "none", borderRadius: 10, cursor: busyId === r.id ? "wait" : "pointer", opacity: busyId === r.id ? 0.7 : 1 }}>{busyId === r.id ? "Working…" : "✓ Approve & publish"}</button>
+                <button onClick={() => reject(r.id)} disabled={busyId === r.id} style={{ background: C.white, color: C.red, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: busyId === r.id ? "wait" : "pointer" }}>Reject</button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -1667,6 +1755,7 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
         ? <div style={{ fontFamily: F.body, fontSize: 12, color: C.soft, padding: "8px 0 16px" }}>Nothing waiting. 🎉</div>
         : pending.map(card)}
       {section("VERIFIED", done, "now public")}
+      {section("SELF-REPORTED · BASIC", basicList, "auto-posted, no review")}
       {section("REJECTED", rejected, "not shown on map")}
     </>
   );
