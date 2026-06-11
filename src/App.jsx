@@ -1829,7 +1829,8 @@ function BizWelcomeScreen({ go = () => {}, back = () => {} }) {
       {/* Sticky CTA */}
       <div style={{ padding: "12px 18px", background: C.white, borderTop: `1px solid ${C.border}` }}>
         <button onClick={() => go("bizPricing")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "14px", border: "none", borderRadius: 12, cursor: "pointer" }}>See Pricing →</button>
-        <div style={{ textAlign: "center", marginTop: 6, fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em" }}>NO CREDIT CARD · FREE TIER FOREVER</div>
+        <button onClick={() => go("confidence")} style={{ width: "100%", background: "transparent", color: C.teal, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "9px", border: "none", cursor: "pointer", marginTop: 2 }}>Why the score is trusted →</button>
+        <div style={{ textAlign: "center", marginTop: 2, fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em" }}>NO CREDIT CARD · FREE TIER FOREVER</div>
       </div>
     </div>
   );
@@ -2518,6 +2519,61 @@ function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
 }
 const inpBasic = { width: "100%", fontFamily: F.body, fontSize: 14, color: C.ink, background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", marginBottom: 10, outline: "none", boxSizing: "border-box" };
 
+// SCREEN — "Confidence" / why the score is trustworthy (sells the verified tier)
+function ConfidenceScreen({ go = () => {}, back = () => {} }) {
+  const safeguards = [
+    ["⚖️", "Category-fair weighting", "A coffee shop and a law firm create impact differently. The algorithm re-weights each pillar to fit your business type — so every score is an honest, apples-to-apples comparison.", C.blue],
+    ["🛡️", "Evidence Multiplier", "The anti-greenwashing core. Third-party-certified proof amplifies a score; an unverified “trust me” is heavily discounted. You can't talk your way to a high number — you have to prove it.", C.teal],
+    ["⏳", "Time Decay (DAF)", "A score reflects right now, not a trophy from years ago. It stays at full strength when fresh, then fades over a year if not renewed. No resting on old laurels.", C.lime],
+    ["🔐", "Identity Confidence (ICS)", "Before a score is published, we confirm the business is real — checking EIN, Secretary-of-State standing, and Dun & Bradstreet records. A name with no verified identity can't post a high score.", C.amber],
+  ];
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflowY: "auto" }}>
+      {/* Hero */}
+      <div style={{ background: GRAD, color: C.white, padding: "16px 22px 26px" }}>
+        <span onClick={() => back()} style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", cursor: "pointer" }}>← Back</span>
+        <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: "0.14em", opacity: 0.85, marginTop: 12 }}>BUILT TO BE BELIEVED</div>
+        <div style={{ fontFamily: F.serif, fontSize: 30, fontWeight: 700, lineHeight: 1.05, marginTop: 6 }}>Confidence,<br/>quantified.</div>
+        <div style={{ fontFamily: F.body, fontSize: 13, opacity: 0.92, lineHeight: 1.55, marginTop: 12 }}>
+          Anyone can <em>say</em> they're local, green, and fair. The <strong>CEIS™ Score</strong> is the first number engineered so shoppers don't have to take their word for it — a proprietary algorithm weighing <strong>47 verified signals</strong> through a five-stage pipeline.
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 16px 22px" }}>
+        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", marginBottom: 10 }}>FOUR SAFEGUARDS BEHIND EVERY SCORE</div>
+        {safeguards.map(([ico, title, body, col]) => (
+          <div key={title} style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 10, borderLeft: `4px solid ${col}` }}>
+            <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink }}>{ico} {title}</div>
+            <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, lineHeight: 1.5, marginTop: 5 }}>{body}</div>
+          </div>
+        ))}
+
+        {/* Data */}
+        <div style={{ display: "flex", gap: 8, marginTop: 6, marginBottom: 12 }}>
+          {[["~3×", "local multiplier"], ["2 in 3", "pay more for values"], ["$0.68", "stays local vs $0.43"]].map(([n, l]) => (
+            <div key={l} style={{ flex: 1, background: C.white, borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
+              <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 800, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>{n}</div>
+              <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, marginTop: 4, lineHeight: 1.3 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Business CTA */}
+        <div style={{ background: C.ink, color: C.white, borderRadius: 16, padding: 18 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.1em" }}>FOR BUSINESS OWNERS</div>
+          <div style={{ fontFamily: F.serif, fontSize: 19, fontWeight: 700, lineHeight: 1.15, marginTop: 6 }}>Stop competing on claims. Compete on proof.</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: "rgba(255,255,255,0.78)", lineHeight: 1.55, marginTop: 8 }}>
+            Your competitor says the same things you do. A verified CEIS™ Score is the one thing they can't copy or fake. Be the <strong style={{ color: C.white }}>first verified business in your category</strong> — and own that story before someone else does.
+          </div>
+          <button onClick={() => go("auth")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginTop: 14 }}>Get your business scored →</button>
+          <button onClick={() => go("bizPricing")} style={{ width: "100%", background: "transparent", color: C.white, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "11px", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 12, cursor: "pointer", marginTop: 8 }}>See pricing</button>
+        </div>
+        <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, textAlign: "center", marginTop: 12, lineHeight: 1.4 }}>The exact formula is proprietary &amp; patent-pending to DollarVote PBC. Stats are modeled estimates.</div>
+      </div>
+    </div>
+  );
+}
+
 // ═════════════════════════════════════════════════════════
 // SCREEN REGISTRY
 // ═════════════════════════════════════════════════════════
@@ -2534,6 +2590,7 @@ const SCREENS = {
   auth:          { flow: "business", screen: "08 · ACCOUNT",       label: "Sign up or log in as a business owner",              render: (nav, data) => <AuthScreen {...nav} session={data.session} /> },
   bizPricing:    { flow: "business", screen: "09 · PRICING",       label: "Tier selector — Free / Starter / Growth / Premium",  render: (nav, data) => <BizPricingScreen {...nav} session={data.session} /> },
   basicScore:    { flow: "business", screen: "09b · BASIC SCORE",  label: "Free self-reported Basic score — auto-posts to the map", render: (nav, data) => <BasicScoreScreen {...nav} session={data.session} /> },
+  confidence:    { flow: "business", screen: "07b · CONFIDENCE",   label: "Why the CEIS score is trusted — DAF/ICS/weighting + business CTA", render: (nav) => <ConfidenceScreen {...nav} /> },
   bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} /> },
   bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} /> },
   bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },
@@ -2542,7 +2599,7 @@ const SCREENS = {
 };
 
 const CONSUMER_ORDER = ["welcome", "shopperWelcome", "consumerHome", "map", "categories", "profile", "impact", "shopperJoin"];
-const BUSINESS_ORDER = ["bizWelcome", "auth", "bizPricing", "basicScore", "bizDashboard", "bizStats", "bizImprove", "bizProfile"];
+const BUSINESS_ORDER = ["bizWelcome", "confidence", "auth", "bizPricing", "basicScore", "bizDashboard", "bizStats", "bizImprove", "bizProfile"];
 
 // ═════════════════════════════════════════════════════════
 // INTERACTIVE PROTOTYPE — single phone with real navigation
