@@ -870,7 +870,7 @@ function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { p
             <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.5, margin: "6px 0 12px" }}>
               We're just getting started in your area. Be the first to put a values-driven business on the map.
             </div>
-            <button onClick={() => go("bizWelcome")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "11px 18px", border: "none", borderRadius: 11, cursor: "pointer" }}>Nominate a business →</button>
+            <button onClick={() => go("nominate")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "11px 18px", border: "none", borderRadius: 11, cursor: "pointer" }}>Nominate a business →</button>
           </div>
         )}
       </div>
@@ -1570,7 +1570,9 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     if (error) { setState({ phase: "error", rows: [], isAdmin: false, err: error.message }); return; }
     // Confirm admin explicitly (so we can show a clear "not authorized" message).
     const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", session.user.id).maybeSingle();
-    setState({ phase: "ready", rows: data || [], isAdmin: !!adminRow });
+    // Shopper-submitted business nominations (admin-read-only via RLS).
+    const { data: noms } = await supabase.from("nominations").select("*").order("created_at", { ascending: false });
+    setState({ phase: "ready", rows: data || [], noms: noms || [], isAdmin: !!adminRow });
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [session]);
@@ -1766,6 +1768,47 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     </>
   );
 
+  // Shopper nominations — follow-up queue
+  const noms = state.noms || [];
+  const newNoms = noms.filter(n => n.status === "new");
+  const doneNoms = noms.filter(n => n.status !== "new");
+  async function markContacted(id) {
+    setBusyId(id);
+    await supabase.from("nominations").update({ status: "contacted" }).eq("id", id);
+    await load();
+    setBusyId(null);
+  }
+  const nomCard = (n) => (
+    <div key={n.id} style={{ ...glass(0.6), borderRadius: 14, padding: 14, marginBottom: 10, opacity: n.status === "new" ? 1 : 0.65 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink }}>💌 {n.business_name}</div>
+          <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft, marginTop: 2 }}>{new Date(n.created_at).toLocaleDateString()} · {n.status === "new" ? "awaiting outreach" : "contacted ✓"}</div>
+        </div>
+        <Tag color={n.status === "new" ? C.amber : C.green}>{n.status}</Tag>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        {[
+          ["Contact", n.contact_name],
+          ["Email", <a key="e" href={`mailto:${n.email}?subject=${encodeURIComponent("You've been nominated for a DollarVote score — " + n.business_name)}`} style={{ color: C.teal, fontWeight: 700, textDecoration: "none" }}>{n.email}</a>],
+          ["Phone", n.phone ? <a key="p" href={`tel:${n.phone}`} style={{ color: C.teal, fontWeight: 700, textDecoration: "none" }}>{n.phone}</a> : "—"],
+          ["Address", n.address],
+          ["Web", n.web_url ? <a key="w" href={/^https?:/i.test(n.web_url) ? n.web_url : `https://${n.web_url}`} target="_blank" rel="noopener noreferrer" style={{ color: C.teal, fontWeight: 700, textDecoration: "none" }}>{n.web_url} ↗</a> : "—"],
+        ].map(([k, v]) => (
+          <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid }}>{k}</span>
+            <span style={{ fontFamily: F.body, fontSize: 11.5, fontWeight: 600, color: C.ink, textAlign: "right", maxWidth: "65%", wordBreak: "break-word" }}>{v}</span>
+          </div>
+        ))}
+      </div>
+      {n.status === "new" && (
+        <button onClick={() => markContacted(n.id)} disabled={busyId === n.id} style={{ width: "100%", marginTop: 12, background: C.white, color: C.green, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "9px", border: `1px solid ${C.border}`, borderRadius: 10, cursor: busyId === n.id ? "wait" : "pointer" }}>
+          {busyId === n.id ? "Saving…" : "✓ Mark as contacted"}
+        </button>
+      )}
+    </div>
+  );
+
   return wrap(
     <>
       <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", marginBottom: 8 }}>
@@ -1774,9 +1817,25 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
       {pending.length === 0
         ? <div style={{ fontFamily: F.body, fontSize: 12, color: C.soft, padding: "8px 0 16px" }}>Nothing waiting. 🎉</div>
         : pending.map(card)}
+      {newNoms.length > 0 && (
+        <>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", margin: "12px 0 8px" }}>
+            NOMINATIONS ({newNoms.length}) · shoppers want these businesses on the map
+          </div>
+          {newNoms.map(nomCard)}
+        </>
+      )}
       {section("VERIFIED", done, "now public")}
       {section("SELF-REPORTED · BASIC", basicList, "auto-posted, no review")}
       {section("REJECTED", rejected, "not shown on map")}
+      {doneNoms.length > 0 && (
+        <>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", margin: "12px 0 8px" }}>
+            NOMINATIONS · CONTACTED ({doneNoms.length})
+          </div>
+          {doneNoms.map(nomCard)}
+        </>
+      )}
     </>
   );
 }
@@ -2687,6 +2746,73 @@ function ContactScreen({ go = () => {}, back = () => {} }) {
   );
 }
 
+// SCREEN — Nominate a business (shopper suggests a business; lands on the admin Dashboard for follow-up)
+function NominateScreen({ go = () => {}, back = () => {} }) {
+  const [f, setF] = useState({ business_name: "", contact_name: "", phone: "", email: "", address: "", web_url: "" });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [done, setDone] = useState(false);
+  const set = (k) => (e) => setF((v) => ({ ...v, [k]: e.target.value }));
+
+  async function submit() {
+    if (!supabase) { setMsg("No connection — please try again."); return; }
+    if (!f.business_name.trim()) { setMsg("Please add the business name."); return; }
+    if (!f.contact_name.trim()) { setMsg("Please add a contact name."); return; }
+    if (!/.+@.+\..+/.test(f.email.trim())) { setMsg("Please add a valid email address."); return; }
+    if (!f.address.trim()) { setMsg("Please add the business address."); return; }
+    if (!f.web_url.trim()) { setMsg("Please add the business website (or social page) URL."); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.from("nominations").insert({
+      business_name: f.business_name.trim(), contact_name: f.contact_name.trim(),
+      phone: f.phone.trim() || null, email: f.email.trim(),
+      address: f.address.trim(), web_url: f.web_url.trim(),
+    });
+    setBusy(false);
+    if (error) { setMsg("Couldn't submit: " + error.message); return; }
+    setDone(true);
+  }
+
+  if (done) {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, padding: 24, justifyContent: "center", textAlign: "center" }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+        <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 8 }}>Nomination received!</div>
+        <div style={{ fontFamily: F.body, fontSize: 13, color: C.mid, lineHeight: 1.55, maxWidth: 300, margin: "0 auto 20px" }}>
+          Thank you — the DollarVote team will reach out to <strong>{f.business_name}</strong> and invite them to get verified and on the map.
+        </div>
+        <button onClick={() => go("map")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 8 }}>Back to the map →</button>
+        <button onClick={() => { setF({ business_name: "", contact_name: "", phone: "", email: "", address: "", web_url: "" }); setDone(false); }} style={{ background: "transparent", color: C.teal, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "10px", border: "none", cursor: "pointer" }}>Nominate another business</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.white, overflowY: "auto" }}>
+      <div style={{ padding: "16px 22px 6px" }}>
+        <span onClick={() => back()} style={{ fontSize: 13, color: C.soft, cursor: "pointer" }}>← Back</span>
+        <Tag color={C.teal}>NOMINATE A BUSINESS</Tag>
+        <div style={{ fontFamily: F.serif, fontSize: 23, fontWeight: 700, color: C.ink, lineHeight: 1.1, marginTop: 8 }}>Love a local business?<br/>Put it on the map.</div>
+        <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, marginTop: 6, lineHeight: 1.5 }}>
+          Tell us who they are and we'll personally invite them to get verified. They'll never know it was you — unless you want them to.
+        </div>
+      </div>
+      <div style={{ padding: "12px 22px 24px" }}>
+        <input value={f.business_name} onChange={set("business_name")} placeholder="Business name *" style={inpBasic} />
+        <input value={f.contact_name} onChange={set("contact_name")} placeholder="Contact name (owner or manager) *" style={inpBasic} />
+        <input value={f.phone} onChange={set("phone")} type="tel" placeholder="Phone number (optional)" style={inpBasic} />
+        <input value={f.email} onChange={set("email")} type="email" placeholder="Email *" style={inpBasic} />
+        <input value={f.address} onChange={set("address")} placeholder="Business address *" style={inpBasic} />
+        <input value={f.web_url} onChange={set("web_url")} type="url" placeholder="Website or social page URL *" style={inpBasic} />
+        {msg && <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.red, margin: "4px 0 8px" }}>{msg}</div>}
+        <button onClick={submit} disabled={busy} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "14px", border: "none", borderRadius: 12, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1, marginTop: 4 }}>
+          {busy ? "Submitting…" : "Submit nomination →"}
+        </button>
+        <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, textAlign: "center", marginTop: 10, lineHeight: 1.4 }}>We only use this to invite the business — never for spam.</div>
+      </div>
+    </div>
+  );
+}
+
 // ═════════════════════════════════════════════════════════
 // SCREEN REGISTRY
 // ═════════════════════════════════════════════════════════
@@ -2705,6 +2831,7 @@ const SCREENS = {
   basicScore:    { flow: "business", screen: "09b · BASIC SCORE",  label: "Free self-reported Basic score — auto-posts to the map", render: (nav, data) => <BasicScoreScreen {...nav} session={data.session} /> },
   confidence:    { flow: "business", screen: "07b · CONFIDENCE",   label: "Why the CEIS score is trusted — DAF/ICS/weighting + business CTA", render: (nav) => <ConfidenceScreen {...nav} /> },
   contact:       { flow: "consumer", screen: "★ CONTACT",          label: "Contact us — support by topic via email",            render: (nav) => <ContactScreen {...nav} /> },
+  nominate:      { flow: "consumer", screen: "05b · NOMINATE",     label: "Nominate a business — stored on the admin dashboard", render: (nav) => <NominateScreen {...nav} /> },
   bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },
