@@ -921,38 +921,41 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
           <ScoreBadge score={b.score} size={64} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700 }}>{tier}</div>
-            <div style={{ fontFamily: F.mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em" }}>VERIFIED · ${(b.local || 0).toFixed(2)}/$10 STAYS LOCAL</div>
+            <div style={{ fontFamily: F.mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em" }}>
+              {b.basic ? "SELF-REPORTED · UNVERIFIED" : b.verified ? `VERIFIED · $${(b.local || 0).toFixed(2)}/$10 STAYS LOCAL` : "PENDING VERIFICATION"}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Where your dollar goes */}
-      <div style={{ background: C.white, margin: "-14px 16px 12px", borderRadius: 16, padding: 18, boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
-        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, fontWeight: 700, letterSpacing: "0.12em", marginBottom: 10 }}>WHERE YOUR $10 GOES HERE</div>
-        {[
-          ["Maria's wages & taxes",      3.40, C.green, 34],
-          ["Local Michigan suppliers",   2.80, C.teal, 28],
-          ["Maria's profit (reinvested)",2.20, C.blueMid, 22],
-          ["Local printer & utilities",  1.10, C.amber, 11],
-          ["Detroit nonprofits",         0.50, C.lime, 5],
-        ].map(([lbl, amt, col, pct]) => (
-          <div key={lbl} style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-              <span style={{ fontFamily: F.body, fontSize: 10.5, color: C.ink }}>{lbl}</span>
-              <span style={{ fontFamily: F.mono, fontSize: 10, fontWeight: 700, color: col }}>${amt}</span>
-            </div>
-            <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, background: col, borderRadius: 2 }} />
-            </div>
+      {/* Where your dollar goes — real number derived from the verified Locality score */}
+      {!b.basic && Number(b.local) > 0 && (
+        <div style={{ background: C.white, margin: "-14px 16px 12px", borderRadius: 16, padding: 18, boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, fontWeight: 700, letterSpacing: "0.12em", marginBottom: 10 }}>WHERE YOUR $10 GOES HERE</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink, fontWeight: 600 }}>Stays in the community</span>
+            <span style={{ fontFamily: F.mono, fontSize: 11, fontWeight: 700, color: C.green }}>${Number(b.local).toFixed(2)}</span>
           </div>
-        ))}
-        <div style={{ marginTop: 12, padding: 10, background: C.ltLime, borderRadius: 10, textAlign: "center" }}>
-          <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.green, lineHeight: 1 }}>$8.30</div>
-          <div style={{ fontFamily: F.body, fontSize: 10, color: C.mid, marginTop: 2 }}>stays in Michigan · 83% local impact</div>
+          <div style={{ height: 8, background: C.border, borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, (Number(b.local) / 10) * 100)}%`, background: GRAD, borderRadius: 4 }} />
+          </div>
+          <div style={{ marginTop: 12, padding: 10, background: C.ltLime, borderRadius: 10, textAlign: "center" }}>
+            <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.green, lineHeight: 1 }}>${Number(b.local).toFixed(2)}</div>
+            <div style={{ fontFamily: F.body, fontSize: 10, color: C.mid, marginTop: 2 }}>of every $10 stays local · from their verified Locality score</div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Pillars detail — real scores + the owner's own story (subscriber perk) */}
+      {/* Pillars detail — real scores + the owner's own story (subscriber perk).
+          Basic listings don't measure pillars, so show an honest note instead of zeros. */}
+      {b.basic ? (
+        <div style={{ margin: "0 16px 12px", background: C.white, borderRadius: 16, padding: 16 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.basic, letterSpacing: "0.12em", marginBottom: 8 }}>ⓘ BASIC · SELF-REPORTED LISTING</div>
+          <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.55 }}>
+            This score comes from the owner's own answers and hasn't been independently verified. Pillar-by-pillar scores (Locality · Sustainability · Transparency) appear when a business completes the verified CEIS™ assessment.
+          </div>
+        </div>
+      ) : (
       <div style={{ margin: "0 16px 12px", background: C.white, borderRadius: 16, padding: 16 }}>
         <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.12em", marginBottom: 10 }}>SCORE BREAKDOWN</div>
         {[
@@ -980,6 +983,7 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
           </div>
         ))}
       </div>
+      )}
 
       {/* Action buttons */}
       <ProfileActions biz={b} />
@@ -1064,57 +1068,54 @@ function ImpactScreen({ go = () => {}, session = null, isActive = false }) {
       {/* Header */}
       <div style={{ padding: "8px 18px 16px", background: C.white }}>
         <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.12em", fontWeight: 700, marginBottom: 4 }}>YOUR LOCAL IMPACT ✓ MEMBER</div>
-        <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink }}>April 2026</div>
+        <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink }}>Founding member</div>
       </div>
 
-      {/* Big number card */}
-      <div style={{ margin: "0 18px 14px", padding: 20, borderRadius: 18, background: GRAD, color: C.white, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", right: -30, top: -30, fontSize: 130, opacity: 0.07 }}>💚</div>
-        <div style={{ fontFamily: F.mono, fontSize: 9, opacity: 0.85, letterSpacing: "0.12em", marginBottom: 4 }}>KEPT IN DETROIT THIS MONTH</div>
-        <div style={{ fontFamily: F.serif, fontSize: 42, fontWeight: 700, lineHeight: 1, marginBottom: 6 }}>$284<span style={{ fontSize: 20, opacity: 0.7 }}>.50</span></div>
-        <div style={{ fontFamily: F.body, fontSize: 11, opacity: 0.85 }}>↑ 22% from last month · You're outpacing 78% of Detroit users</div>
-        <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(255,255,255,0.12)", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>🏆</span>
-          <span style={{ fontFamily: F.body, fontSize: 11 }}><strong>Streak: 4 months</strong> over 60% local</span>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px" }}>
+        {/* Honest starting state — no fictional tracking data */}
+        <div style={{ padding: 20, borderRadius: 18, background: GRAD, color: C.white, position: "relative", overflow: "hidden", marginBottom: 14 }}>
+          <div style={{ position: "absolute", right: -30, top: -30, fontSize: 130, opacity: 0.07 }}>💚</div>
+          <div style={{ fontFamily: F.mono, fontSize: 9, opacity: 0.85, letterSpacing: "0.12em", marginBottom: 4 }}>KEPT IN YOUR COMMUNITY</div>
+          <div style={{ fontFamily: F.serif, fontSize: 42, fontWeight: 700, lineHeight: 1, marginBottom: 6 }}>$0<span style={{ fontSize: 20, opacity: 0.7 }}>.00</span></div>
+          <div style={{ fontFamily: F.body, fontSize: 11.5, opacity: 0.9, lineHeight: 1.5 }}>
+            Your tracker starts at zero — every purchase you log at a verified business grows this number. You're in at the very beginning.
+          </div>
         </div>
-      </div>
 
-      {/* Comparison row */}
-      <div style={{ display: "flex", gap: 8, padding: "0 18px 14px" }}>
-        <div style={{ flex: 1, ...glass(0.55), borderRadius: 12, padding: 12 }}>
-          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.1em", marginBottom: 4 }}>SPENDING</div>
-          <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: C.ink, lineHeight: 1 }}>$418</div>
-          <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, marginTop: 2 }}>This month, total</div>
-        </div>
-        <div style={{ flex: 1, ...glass(0.55), borderRadius: 12, padding: 12 }}>
-          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.lime, letterSpacing: "0.1em", marginBottom: 4 }}>LOCAL %</div>
-          <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: C.green, lineHeight: 1 }}>68%</div>
-          <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, marginTop: 2 }}>vs 43% chain avg</div>
-        </div>
-      </div>
-
-      {/* Recent transactions */}
-      <div style={{ flex: 1, padding: "0 18px 12px", overflowY: "auto" }}>
-        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.12em", marginBottom: 10 }}>RECENT PURCHASES</div>
-        {[
-          ["Maria's Soap Studio", "🧼", 14.50, 12.04, 91],
-          ["Rootwork Kitchen", "🍽️", 38.40, 30.34, 87],
-          ["Ironwood Coffee", "☕", 5.75, 4.66, 88],
-          ["Whole Foods Market", "🛒", 87.20, 37.50, 52],
-          ["Harbor & Grain", "🥐", 12.30, 9.23, 85],
-        ].map(([name, ico, amt, local, score], i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{ico}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
-                <Tag color={scoreColor(score)}>{score}</Tag>
-                <span style={{ fontFamily: F.body, fontSize: 9.5, color: C.green, fontWeight: 600 }}>${local.toFixed(2)} stayed local</span>
+        {/* How it grows */}
+        <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 10 }}>HOW YOUR IMPACT GROWS</div>
+          {[
+            ["🗺", "Find a verified business", "Every score on the map tells you how much of your dollar stays local."],
+            ["🛍", "Spend there", "A $10 purchase at a 90-scored business keeps ~$8+ in your community."],
+            ["📈", "Watch it add up", "Purchase logging is rolling out to founding members first — your history starts the day it ships."],
+          ].map(([ico, t, d]) => (
+            <div key={t} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0" }}>
+              <div style={{ fontSize: 18 }}>{ico}</div>
+              <div>
+                <div style={{ fontFamily: F.body, fontSize: 12.5, fontWeight: 700, color: C.ink }}>{t}</div>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: C.mid, lineHeight: 1.45, marginTop: 2 }}>{d}</div>
               </div>
             </div>
-            <span style={{ fontFamily: F.mono, fontSize: 12, fontWeight: 700, color: C.ink }}>${amt.toFixed(2)}</span>
+          ))}
+        </div>
+
+        {/* The educational why */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <div style={{ flex: 1, ...glass(0.55), borderRadius: 12, padding: 12 }}>
+            <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: C.green, lineHeight: 1 }}>$0.68</div>
+            <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.mid, marginTop: 3, lineHeight: 1.35 }}>of every dollar stays local at an independent business</div>
           </div>
-        ))}
+          <div style={{ flex: 1, ...glass(0.55), borderRadius: 12, padding: 12 }}>
+            <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: C.soft, lineHeight: 1 }}>$0.43</div>
+            <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.mid, marginTop: 3, lineHeight: 1.35 }}>stays when it goes to a national chain</div>
+          </div>
+        </div>
+
+        <button onClick={() => go("map")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "14px", border: "none", borderRadius: 12, cursor: "pointer" }}>
+          Find verified businesses near you →
+        </button>
+        <div style={{ fontFamily: F.body, fontSize: 9, color: C.soft, textAlign: "center", marginTop: 8 }}>$0.68 / $0.43 are modeled estimates from local-multiplier research.</div>
       </div>
 
       {/* Bottom nav */}
@@ -2105,8 +2106,8 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
   // Subscriber Tier (paid) sees single-decimal precision + the multipliers; Free sees the floored integer.
   const raw = sub ? Number(sub.score_total) : 91;
   const subscriber = isActive && !!sub;
-  // Real data when the owner has a submission; sample data otherwise (e.g. the gallery).
-  const bizName = sub ? sub.business_name : "Maria's Soap Studio";
+  // Real data when the owner has a submission; the sample appears only in the logged-out design gallery.
+  const bizName = sub ? sub.business_name : (session ? "Your business" : "Maria's Soap Studio");
   const total   = subscriber ? raw.toFixed(1) : Math.floor(raw);
   const tier    = sub ? sub.tier : "Community Champion";
   const isVerified = sub ? sub.status === "verified" : true;
@@ -2157,7 +2158,8 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
           </div>
         )}
 
-        {/* Score hero (real when available) */}
+        {/* Score hero — real data only; hidden for a logged-in owner with no submission yet */}
+        {(!session || sub) && (
         <div style={{ background: GRAD, color: C.white, borderRadius: 16, padding: 18, marginBottom: 12, position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>{isBasic ? "ⓘ" : isVerified ? "🏆" : "⏳"}</div>
           <Tag color={isBasic ? C.white : C.lime} bg={isBasic ? "rgba(139,92,246,0.85)" : "rgba(125,200,50,0.2)"} outline>{statusLabel}</Tag>
@@ -2189,6 +2191,7 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
             </div>
           )}
         </div>
+        )}
 
         {/* Subscriber Tier · dimensional intelligence (paid, verified) */}
         {subscriber && isVerified && sub.ceis_em != null && (
@@ -2252,7 +2255,7 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
           {[
             ["Add 1% for the Planet membership", "+3 pts", C.lime],
             ["Document your composting program", "+2 pts", C.teal],
-            ["Switch to Bank of Detroit", "+1 pt", C.blue],
+            ["Bank with a local credit union", "+1 pt", C.blue],
           ].map(([t, p, c]) => (
             <div key={t} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
               <span style={{ fontFamily: F.body, fontSize: 11, color: C.ink }}>{t}</span>
