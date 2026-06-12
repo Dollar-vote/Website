@@ -236,6 +236,7 @@ function rowToBiz(r) {
     hood: r.neighborhood,
     verified: r.verified,
     basic: r.basic || false,
+    userId: r.user_id || null,
     emoji: r.emoji || "🏬",
     local: Number(r.local_per_10) || 0,
     distance: r.distance || "",
@@ -885,6 +886,16 @@ function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { p
 function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
   const b = biz || SAMPLE_BIZ[0];
   const tier = b.score >= 90 ? "Community Champion" : b.score >= 75 ? "Above & Beyond" : b.score >= 60 ? "Solid Commitment" : "Growing";
+  // Owner-written pillar highlights (subscriber perk) — public read.
+  const [hl, setHl] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setHl(null);
+    if (!supabase || !b.userId) return;
+    supabase.from("pillar_highlights").select("loc, sus, trn").eq("user_id", b.userId).maybeSingle()
+      .then(({ data }) => { if (alive) setHl(data || null); });
+    return () => { alive = false; };
+  }, [b.userId]);
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflowY: "auto" }}>
       {/* Hero with score */}
@@ -941,23 +952,31 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
         </div>
       </div>
 
-      {/* Pillars detail */}
+      {/* Pillars detail — real scores + the owner's own story (subscriber perk) */}
       <div style={{ margin: "0 16px 12px", background: C.white, borderRadius: 16, padding: 16 }}>
         <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.12em", marginBottom: 10 }}>SCORE BREAKDOWN</div>
         {[
-          ["🏘️", "Locality", 36, 40, C.blue, "87% local supply chain · 100% local team"],
-          ["🌿", "Sustainability", 27, 30, C.teal, "Plastic-free packaging · Solar-powered studio"],
-          ["📖", "Transparency", 28, 30, C.lime, "Living wage verified · 5% revenue donated"],
-        ].map(([ico, name, s, m, col, desc]) => (
-          <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 18, width: 28 }}>{ico}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.ink }}>{name}</span>
-                <span style={{ fontFamily: F.mono, fontSize: 11, fontWeight: 700, color: col }}>{s}/{m}</span>
+          ["🏘️", "Locality", "loc", b.loc, 40, C.blue, "How much of their spending, team, and ownership stays local"],
+          ["🌿", "Sustainability", "sus", b.sus, 30, C.teal, "Waste, energy, and sourcing practices"],
+          ["📖", "Transparency", "trn", b.trn, 30, C.lime, "Fair wages, giving, and openness about where the money goes"],
+        ].map(([ico, name, key, s, m, col, desc]) => (
+          <div key={name} style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 18, width: 28 }}>{ico}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                  <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.ink }}>{name}</span>
+                  <span style={{ fontFamily: F.mono, fontSize: 11, fontWeight: 700, color: col }}>{s != null ? Math.floor(Number(s)) : "—"}/{m}</span>
+                </div>
+                <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft }}>{desc}</div>
               </div>
-              <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft }}>{desc}</div>
             </div>
+            {hl && hl[key] && (
+              <div style={{ marginTop: 8, marginLeft: 38, background: C.bg, borderLeft: `3px solid ${col}`, borderRadius: "0 10px 10px 0", padding: "8px 12px" }}>
+                <div style={{ fontFamily: F.mono, fontSize: 7.5, color: C.soft, letterSpacing: "0.08em", marginBottom: 3 }}>FROM THE OWNER</div>
+                <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.ink, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{hl[key]}</div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -2448,7 +2467,70 @@ function BizImproveScreen({ go = () => {}, session = null }) {
 }
 
 // PROFILE tab — public-profile preview + real business details + account actions.
-function BizProfileScreen({ go = () => {}, session = null }) {
+// Subscriber perk — owner-written highlights for each pillar, shown on the public profile.
+const HIGHLIGHT_WORD_LIMIT = 1000;
+const wordCount = (t) => (t || "").trim().split(/\s+/).filter(Boolean).length;
+function PillarHighlightsEditor({ session }) {
+  const [f, setF] = useState({ loc: "", sus: "", trn: "" });
+  const [phase, setPhase] = useState("loading"); // loading | ready | saving
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!supabase || !session) return;
+    supabase.from("pillar_highlights").select("loc, sus, trn").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => { if (!alive) return; if (data) setF({ loc: data.loc || "", sus: data.sus || "", trn: data.trn || "" }); setPhase("ready"); });
+    return () => { alive = false; };
+  }, [session]);
+
+  async function save() {
+    for (const [k, label] of [["loc", "Locality"], ["sus", "Sustainability"], ["trn", "Transparency"]]) {
+      if (wordCount(f[k]) > HIGHLIGHT_WORD_LIMIT) { setMsg({ type: "err", text: `${label} is over the ${HIGHLIGHT_WORD_LIMIT}-word limit.` }); return; }
+    }
+    setPhase("saving"); setMsg(null);
+    const { error } = await supabase.from("pillar_highlights").upsert({
+      user_id: session.user.id, loc: f.loc.trim() || null, sus: f.sus.trim() || null, trn: f.trn.trim() || null, updated_at: new Date().toISOString(),
+    });
+    setPhase("ready");
+    setMsg(error ? { type: "err", text: "Couldn't save: " + error.message } : { type: "ok", text: "Saved — live on your public profile. ✓" });
+  }
+
+  const fields = [["loc", "🏘️ Locality", "Your local story — suppliers, team, roots in the neighborhood…"], ["sus", "🌿 Sustainability", "What you do for the planet — practices, materials, certifications…"], ["trn", "📖 Transparency", "How you do right by people — wages, giving, openness…"]];
+  return (
+    <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700 }}>YOUR STORY · SHOWN ON YOUR PUBLIC PROFILE</div>
+        <Tag color={C.teal}>SUBSCRIBER</Tag>
+      </div>
+      <div style={{ fontFamily: F.body, fontSize: 11, color: C.mid, lineHeight: 1.45, marginBottom: 10 }}>
+        In your own words — up to {HIGHLIGHT_WORD_LIMIT.toLocaleString()} words per pillar. Shoppers see this beneath your verified scores.
+      </div>
+      {phase === "loading" ? <div style={{ fontFamily: F.body, fontSize: 11, color: C.soft }}>Loading…</div> : (
+        <>
+          {fields.map(([k, label, ph]) => {
+            const wc = wordCount(f[k]); const over = wc > HIGHLIGHT_WORD_LIMIT;
+            return (
+              <div key={k} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.ink }}>{label}</span>
+                  <span style={{ fontFamily: F.mono, fontSize: 9, color: over ? C.red : C.soft }}>{wc.toLocaleString()}/{HIGHLIGHT_WORD_LIMIT.toLocaleString()} words</span>
+                </div>
+                <textarea value={f[k]} onChange={(e) => setF((v) => ({ ...v, [k]: e.target.value }))} placeholder={ph} rows={3}
+                  style={{ width: "100%", fontFamily: F.body, fontSize: 12.5, color: C.ink, background: C.bg, border: `1.5px solid ${over ? C.red : C.border}`, borderRadius: 10, padding: "10px 12px", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.5 }} />
+              </div>
+            );
+          })}
+          {msg && <div style={{ fontFamily: F.body, fontSize: 11.5, color: msg.type === "err" ? C.red : C.green, marginBottom: 8 }}>{msg.text}</div>}
+          <button onClick={save} disabled={phase === "saving"} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px", border: "none", borderRadius: 11, cursor: phase === "saving" ? "wait" : "pointer", opacity: phase === "saving" ? 0.7 : 1 }}>
+            {phase === "saving" ? "Saving…" : "Save my story →"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function BizProfileScreen({ go = () => {}, session = null, isActive = false }) {
   const mine = useMySubmission(session);
   const sub = mine.sub;
   const notice = bizStateScreen({ mine, session, active: "bizProfile", go, title: "PROFILE" });
@@ -2472,6 +2554,19 @@ function BizProfileScreen({ go = () => {}, session = null }) {
             </div>
           </div>
         </div>
+        {isActive ? (
+          <PillarHighlightsEditor session={session} />
+        ) : (
+          <div onClick={() => go("bizPricing")} style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 14, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 20 }}>✍️</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: F.serif, fontSize: 13.5, fontWeight: 700 }}>Tell your story on your public profile</div>
+              <div style={{ fontFamily: F.body, fontSize: 10.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.4, marginTop: 2 }}>Subscribers write their own highlight for each pillar — shoppers see it beneath your verified scores.</div>
+            </div>
+            <span style={{ color: C.lime, fontWeight: 700 }}>→</span>
+          </div>
+        )}
+
         <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
           <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 10 }}>BUSINESS DETAILS</div>
           {[
@@ -2835,7 +2930,7 @@ const SCREENS = {
   bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },
-  bizProfile:    { flow: "business", screen: "10d · PROFILE",      label: "Public-profile preview + business details + account", render: (nav, data) => <BizProfileScreen {...nav} session={data.session} /> },
+  bizProfile:    { flow: "business", screen: "10d · PROFILE",      label: "Public-profile preview + business details + account", render: (nav, data) => <BizProfileScreen {...nav} session={data.session} isActive={data.isActive} /> },
   admin:         { flow: "admin",    screen: "★ ADMIN",            label: "Review queue — approve & publish submissions",       render: (nav, data) => <AdminScreen {...nav} session={data.session} /> },
 };
 
