@@ -1984,7 +1984,7 @@ function useMySubmission(session) {
     if (!supabase || !session) { setData({ phase: session ? "loading" : "anon", sub: null }); return; }
     supabase
       .from("ceis_submissions")
-      .select("business_name, category, ein, reg_state, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at")
+      .select("business_name, category, ein, reg_state, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at, ceis_em, ceis_daf, ceis_ics")
       .eq("user_id", session.user.id) // only THIS owner's submission (admins can read all, so filter explicitly)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -1999,14 +1999,17 @@ function useMySubmission(session) {
 }
 
 // SCREEN 9 — Business Dashboard
-function BizDashboardScreen({ go = () => {}, session = null }) {
+function BizDashboardScreen({ go = () => {}, session = null, isActive = false }) {
   const mine = useMySubmission(session);
   const sub = mine.sub;
   const isAdmin = useIsAdmin(session);
 
+  // Subscriber Tier (paid) sees single-decimal precision + the multipliers; Free sees the floored integer.
+  const raw = sub ? Number(sub.score_total) : 91;
+  const subscriber = isActive && !!sub;
   // Real data when the owner has a submission; sample data otherwise (e.g. the gallery).
   const bizName = sub ? sub.business_name : "Maria's Soap Studio";
-  const total   = sub ? Math.floor(Number(sub.score_total)) : 91;
+  const total   = subscriber ? raw.toFixed(1) : Math.floor(raw);
   const tier    = sub ? sub.tier : "Community Champion";
   const isVerified = sub ? sub.status === "verified" : true;
   const isBasic = sub ? sub.status === "basic" : false;
@@ -2076,7 +2079,7 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
               {[["Locality", sub.score_loc, 40], ["Sustainability", sub.score_sus, 30], ["Transparency", sub.score_trn, 30]].map(([lbl, v, max]) => (
                 <div key={lbl} style={{ flex: 1, background: "rgba(255,255,255,0.14)", borderRadius: 8, padding: "7px 8px" }}>
                   <div style={{ fontFamily: F.mono, fontSize: 7.5, opacity: 0.8, letterSpacing: "0.06em" }}>{String(lbl).toUpperCase()}</div>
-                  <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, lineHeight: 1.1 }}>{Math.round(Number(v))}<span style={{ fontSize: 9, opacity: 0.7 }}>/{max}</span></div>
+                  <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, lineHeight: 1.1 }}>{subscriber ? Number(v).toFixed(1) : Math.round(Number(v))}<span style={{ fontSize: 9, opacity: 0.7 }}>/{max}</span></div>
                 </div>
               ))}
             </div>
@@ -2088,6 +2091,40 @@ function BizDashboardScreen({ go = () => {}, session = null }) {
             </div>
           )}
         </div>
+
+        {/* Subscriber Tier · dimensional intelligence (paid, verified) */}
+        {subscriber && isVerified && sub.ceis_em != null && (
+          <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700 }}>DIMENSIONAL INTELLIGENCE</div>
+              <Tag color={C.teal}>SUBSCRIBER</Tag>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {[["Evidence ×", Number(sub.ceis_em).toFixed(3), "documentation quality"], ["Decay ×", Number(sub.ceis_daf).toFixed(2), "score freshness"], ["Identity ×", Number(sub.ceis_ics).toFixed(2), "verification confidence"]].map(([lbl, v, hint]) => (
+                <div key={lbl} style={{ background: C.bg, borderRadius: 10, padding: "9px 10px" }}>
+                  <div style={{ fontFamily: F.mono, fontSize: 8, color: C.soft, letterSpacing: "0.05em" }}>{lbl}</div>
+                  <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700, color: C.ink, lineHeight: 1.1, marginTop: 2 }}>{v}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 8.5, color: C.soft, marginTop: 2, lineHeight: 1.25 }}>{hint}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, marginTop: 8, lineHeight: 1.4 }}>
+              Your official CEIS™ is precise to a single decimal: <strong style={{ color: C.ink }}>{raw.toFixed(1)}</strong>. The public sees the floored whole number ({Math.floor(raw)}).
+            </div>
+          </div>
+        )}
+
+        {/* Free-tier owner · upsell to full precision */}
+        {sub && !isBasic && !subscriber && (
+          <div onClick={() => go("bizPricing")} style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 14, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 20 }}>🔓</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: F.serif, fontSize: 13.5, fontWeight: 700 }}>Unlock your full-precision score</div>
+              <div style={{ fontFamily: F.body, fontSize: 10.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.4, marginTop: 2 }}>See your exact single-decimal CEIS™, pillar detail, and the Evidence · Decay · Identity multipliers behind it.</div>
+            </div>
+            <span style={{ color: C.lime, fontWeight: 700 }}>→</span>
+          </div>
+        )}
 
         {/* Quick stats grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
@@ -2207,12 +2244,14 @@ function bizStateScreen({ mine, session, active, go, title }) {
 }
 
 // STATS tab — real score breakdown + the owner's assessment record.
-function BizStatsScreen({ go = () => {}, session = null }) {
+function BizStatsScreen({ go = () => {}, session = null, isActive = false }) {
   const mine = useMySubmission(session);
   const sub = mine.sub;
   const notice = bizStateScreen({ mine, session, active: "bizStats", go, title: "YOUR STATS" });
   if (notice) return notice;
-  const total = Math.floor(Number(sub.score_total));
+  const raw = Number(sub.score_total);
+  const subscriber = isActive; // paid tier sees single-decimal precision
+  const total = subscriber ? raw.toFixed(1) : Math.floor(raw);
   const verified = sub.status === "verified";
   const submitted = sub.created_at ? new Date(sub.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
   return (
@@ -2239,6 +2278,13 @@ function BizStatsScreen({ go = () => {}, session = null }) {
             ["Category", sub.category || "—"],
             ["Tier", sub.tier],
             ["Status", verified ? "✓ Verified & live" : "⏳ Under review"],
+            ...(subscriber && verified && sub.ceis_em != null ? [
+              ["Official CEIS™", raw.toFixed(1)],
+              ["Public score", `${Math.floor(raw)} (floored)`],
+              ["Evidence ×", Number(sub.ceis_em).toFixed(3)],
+              ["Decay ×", Number(sub.ceis_daf).toFixed(2)],
+              ["Identity ×", Number(sub.ceis_ics).toFixed(2)],
+            ] : []),
             ["Submitted", submitted],
             ["Reference", sub.ref_code || "—"],
           ].map(([k, v]) => (
@@ -2591,8 +2637,8 @@ const SCREENS = {
   bizPricing:    { flow: "business", screen: "09 · PRICING",       label: "Tier selector — Free / Starter / Growth / Premium",  render: (nav, data) => <BizPricingScreen {...nav} session={data.session} /> },
   basicScore:    { flow: "business", screen: "09b · BASIC SCORE",  label: "Free self-reported Basic score — auto-posts to the map", render: (nav, data) => <BasicScoreScreen {...nav} session={data.session} /> },
   confidence:    { flow: "business", screen: "07b · CONFIDENCE",   label: "Why the CEIS score is trusted — DAF/ICS/weighting + business CTA", render: (nav) => <ConfidenceScreen {...nav} /> },
-  bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} /> },
-  bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} /> },
+  bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} isActive={data.isActive} /> },
+  bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },
   bizProfile:    { flow: "business", screen: "10d · PROFILE",      label: "Public-profile preview + business details + account", render: (nav, data) => <BizProfileScreen {...nav} session={data.session} /> },
   admin:         { flow: "admin",    screen: "★ ADMIN",            label: "Review queue — approve & publish submissions",       render: (nav, data) => <AdminScreen {...nav} session={data.session} /> },
