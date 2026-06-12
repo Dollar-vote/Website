@@ -259,7 +259,9 @@ function useBusinesses() {
       .order("score", { ascending: false })
       .then(({ data, error }) => {
         if (!alive) return;
-        if (!error && data && data.length) {
+        // A successful query is authoritative — even when empty (organic directory,
+        // no sample fallback). SAMPLE_BIZ remains only for no-connection/gallery.
+        if (!error && data) {
           setBiz(data.map(rowToBiz));
           setSource("database");
         }
@@ -536,9 +538,11 @@ function WelcomeScreen({ go = () => {} }) {
           <span onClick={() => go("auth")} style={{ color: C.white, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Log in</span>
         </div>
 
-        {/* PBC tag */}
+        {/* PBC tag + contact */}
         <div style={{ position: "absolute", bottom: -30, left: 0, right: 0, textAlign: "center" }}>
-          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em" }}>DELAWARE PUBLIC BENEFIT CORP</div>
+          <div style={{ fontFamily: F.mono, fontSize: 8.5, color: "rgba(255,255,255,0.6)", letterSpacing: "0.12em" }}>
+            DELAWARE PUBLIC BENEFIT CORP · <span onClick={() => go("contact")} style={{ color: "rgba(255,255,255,0.85)", cursor: "pointer", textDecoration: "underline" }}>CONTACT US</span>
+          </div>
         </div>
       </div>
     </div>
@@ -568,21 +572,27 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
         </div>
       </div>
 
-      {/* Impact card - signature feature like Upside's earnings */}
+      {/* Story card — the journey of your dollar (educational insight, not personal data) */}
       <div onClick={() => go("impact")} style={{ margin: "0 18px 14px", borderRadius: 18, background: GRAD, padding: 18, color: C.white, position: "relative", overflow: "hidden", cursor: "pointer" }}>
-        <div style={{ position: "absolute", right: -20, bottom: -20, fontSize: 100, opacity: 0.08 }}>💚</div>
-        <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: "0.12em", opacity: 0.8, marginBottom: 6 }}>YOUR LOCAL IMPACT THIS MONTH</div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 8 }}>
-          <span style={{ fontFamily: F.serif, fontSize: 32, fontWeight: 700, lineHeight: 1 }}>$284</span>
-          <span style={{ fontFamily: F.body, fontSize: 11, opacity: 0.85 }}>kept in Detroit</span>
+        <div style={{ position: "absolute", right: -20, bottom: -20, fontSize: 100, opacity: 0.08 }}>💡</div>
+        <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: "0.12em", opacity: 0.8, marginBottom: 6 }}>THE JOURNEY OF YOUR DOLLAR</div>
+        <div style={{ fontFamily: F.serif, fontSize: 17, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>
+          A dollar doesn't stop when you spend it.
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1, height: 5, background: "rgba(255,255,255,0.25)", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: "68%", background: C.lime, borderRadius: 3 }} />
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.14)", borderRadius: 10, padding: "8px 10px" }}>
+            <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, lineHeight: 1 }}>$0.68</div>
+            <div style={{ fontFamily: F.body, fontSize: 9.5, opacity: 0.85, marginTop: 3 }}>stays in your community at a local business</div>
           </div>
-          <span style={{ fontFamily: F.mono, fontSize: 10, fontWeight: 700 }}>68%</span>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.14)", borderRadius: 10, padding: "8px 10px" }}>
+            <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, lineHeight: 1, opacity: 0.7 }}>$0.43</div>
+            <div style={{ fontFamily: F.body, fontSize: 9.5, opacity: 0.85, marginTop: 3 }}>stays when it goes to a national chain</div>
+          </div>
         </div>
-        <div style={{ fontFamily: F.body, fontSize: 10.5, opacity: 0.85, marginTop: 6 }}>of your spending stayed local · vs. 43% chain avg</div>
+        <div style={{ fontFamily: F.body, fontSize: 10.5, opacity: 0.9, lineHeight: 1.45 }}>
+          Knowing where it goes is the difference — every verified score on this map tells you before you spend. <span style={{ fontWeight: 700, color: C.limeLt }}>Spend on purpose →</span>
+        </div>
+        <div style={{ fontFamily: F.body, fontSize: 8.5, opacity: 0.55, marginTop: 6 }}>Modeled estimate · local economic multiplier research</div>
       </div>
 
       {/* Category chips */}
@@ -605,6 +615,16 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
 
       {/* Business cards - Upside-style horizontal scroll */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px" }}>
+        {biz.length === 0 && (
+          <div style={{ ...glass(0.55), borderRadius: 14, padding: 20, textAlign: "center" }}>
+            <div style={{ fontSize: 30, marginBottom: 8 }}>🌱</div>
+            <div style={{ fontFamily: F.serif, fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 4 }}>The map is just getting started</div>
+            <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.5, marginBottom: 12 }}>
+              Verified businesses appear here as they join. Own a business — or love one? Get it on the map.
+            </div>
+            <button onClick={() => go("bizWelcome")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 12, fontWeight: 700, padding: "10px 16px", border: "none", borderRadius: 10, cursor: "pointer" }}>Get a business scored →</button>
+          </div>
+        )}
         {biz.slice(0, 4).map(b => (
           <div key={b.id} onClick={() => go("profile", b)} style={{ ...glass(0.55), borderRadius: 14, padding: 12, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
             <div style={{ width: 50, height: 50, borderRadius: 12, background: C.ltBlue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{b.emoji}</div>
@@ -1108,18 +1128,18 @@ function CategoriesScreen({ go = () => {} }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
         {/* Featured */}
         <div onClick={() => go("map")} style={{ marginBottom: 16, padding: 14, borderRadius: 14, background: C.ink, color: C.white, cursor: "pointer" }}>
-          <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>FEATURED THIS MONTH</Tag>
-          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, marginTop: 6, marginBottom: 4 }}>Earth Day Champions</div>
-          <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>23 Detroit businesses with sustainability scores 28+/30</div>
+          <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>EXPLORE THE MAP</Tag>
+          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, marginTop: 6, marginBottom: 4 }}>Every score, independently verified</div>
+          <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>Browse verified businesses near you — highest community impact first.</div>
         </div>
 
         {/* Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {cats.map(([name, ico, count, col]) => (
+          {cats.map(([name, ico, , col]) => (
             <div key={name} onClick={() => go("map")} style={{ ...glass(0.55), borderRadius: 14, padding: 14, cursor: "pointer" }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: `${col}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 8 }}>{ico}</div>
               <div style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, color: C.ink, marginBottom: 2 }}>{name}</div>
-              <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.06em" }}>{count} BUSINESSES</div>
+              <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.06em" }}>BROWSE ON MAP →</div>
             </div>
           ))}
         </div>
@@ -2126,27 +2146,30 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
           </div>
         )}
 
-        {/* Quick stats grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+        {/* Quick stats grid — honest placeholders until real analytics ship */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {[
-            ["Profile Views", "2,847", "↑ 18%", C.blue],
-            ["New Customers", "127", "↑ 34%", C.lime],
-            ["QR Scans", "1,294", "↑ 22%", C.teal],
-            ["Avg Rating", "4.9★", "−", C.amber],
-          ].map(([lbl, val, ch, col]) => (
+            ["Profile Views", C.blue],
+            ["New Customers", C.lime],
+            ["QR Scans", C.teal],
+            ["Avg Rating", C.amber],
+          ].map(([lbl, col]) => (
             <div key={lbl} style={{ ...glass(0.55), borderRadius: 12, padding: 12 }}>
               <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.08em" }}>{lbl}</div>
-              <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1.1, marginTop: 2 }}>{val}</div>
-              <div style={{ fontFamily: F.mono, fontSize: 9, color: col, fontWeight: 700, marginTop: 2 }}>{ch}</div>
+              <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.soft, lineHeight: 1.1, marginTop: 2 }}>—</div>
+              <div style={{ fontFamily: F.mono, fontSize: 9, color: col, fontWeight: 700, marginTop: 2 }}>SOON</div>
             </div>
           ))}
+        </div>
+        <div style={{ fontFamily: F.body, fontSize: 10, color: C.soft, textAlign: "center", marginBottom: 12 }}>
+          Customer analytics begin tracking once your verified profile is live.
         </div>
 
         {/* Score improvements */}
         <div style={{ background: C.white, borderRadius: 12, padding: 14, marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700 }}>QUICK WINS</div>
-            <span style={{ fontFamily: F.body, fontSize: 10, color: C.teal, fontWeight: 600 }}>View All</span>
+            <span onClick={() => go("bizImprove")} style={{ fontFamily: F.body, fontSize: 10, color: C.teal, fontWeight: 600, cursor: "pointer" }}>View All →</span>
           </div>
           {[
             ["Add 1% for the Planet membership", "+3 pts", C.lime],
@@ -2406,9 +2429,13 @@ function BizProfileScreen({ go = () => {}, session = null }) {
         </div>
         <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
           <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, letterSpacing: "0.08em", fontWeight: 700, marginBottom: 10 }}>ACCOUNT</div>
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
             <span style={{ fontFamily: F.body, fontSize: 12, color: C.mid }}>Email</span>
             <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: C.ink }}>{session?.user?.email || "—"}</span>
+          </div>
+          <div onClick={() => go("contact")} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 2px", cursor: "pointer" }}>
+            <span style={{ fontFamily: F.body, fontSize: 12, color: C.mid }}>💬 Help &amp; support</span>
+            <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.teal }}>Contact us →</span>
           </div>
         </div>
         <button onClick={() => openAssessment()} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 10 }}>Update my assessment →</button>
@@ -2620,6 +2647,46 @@ function ConfidenceScreen({ go = () => {}, back = () => {} }) {
   );
 }
 
+// SCREEN — Contact / support
+function ContactScreen({ go = () => {}, back = () => {} }) {
+  const email = "local@dollar-vote.com";
+  const write = (subject) => { window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`; };
+  const topics = [
+    ["💬", "General question", "Anything about DollarVote, the score, or the map", "DollarVote — General question"],
+    ["🏪", "Business & verification help", "Assessments, documents, your score, getting on the map", "DollarVote — Business / verification help"],
+    ["💳", "Billing & subscriptions", "Plans, payments, refunds, cancellations", "DollarVote — Billing question"],
+    ["🐞", "Report a problem", "Something broken, wrong, or confusing in the app", "DollarVote — Problem report"],
+  ];
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflowY: "auto" }}>
+      <div style={{ background: GRAD, color: C.white, padding: "16px 22px 24px" }}>
+        <span onClick={() => back()} style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", cursor: "pointer" }}>← Back</span>
+        <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: "0.14em", opacity: 0.85, marginTop: 12 }}>CONTACT US</div>
+        <div style={{ fontFamily: F.serif, fontSize: 26, fontWeight: 700, lineHeight: 1.1, marginTop: 6 }}>We're real people.<br/>Talk to us.</div>
+        <div style={{ fontFamily: F.body, fontSize: 12.5, opacity: 0.92, lineHeight: 1.5, marginTop: 10 }}>
+          Every message is read by the DollarVote team — typically answered within <strong>1 business day</strong>.
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {topics.map(([ico, title, desc, subject]) => (
+          <div key={title} onClick={() => write(subject)} style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 10, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+            <div style={{ fontSize: 22 }}>{ico}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, color: C.ink }}>{title}</div>
+              <div style={{ fontFamily: F.body, fontSize: 11, color: C.mid, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
+            </div>
+            <span style={{ color: C.teal, fontWeight: 700 }}>→</span>
+          </div>
+        ))}
+        <div style={{ textAlign: "center", marginTop: 14 }}>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.08em", marginBottom: 4 }}>OR EMAIL US DIRECTLY</div>
+          <a href={`mailto:${email}`} style={{ fontFamily: F.body, fontSize: 14, fontWeight: 700, color: C.teal, textDecoration: "none" }}>{email}</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═════════════════════════════════════════════════════════
 // SCREEN REGISTRY
 // ═════════════════════════════════════════════════════════
@@ -2637,6 +2704,7 @@ const SCREENS = {
   bizPricing:    { flow: "business", screen: "09 · PRICING",       label: "Tier selector — Free / Starter / Growth / Premium",  render: (nav, data) => <BizPricingScreen {...nav} session={data.session} /> },
   basicScore:    { flow: "business", screen: "09b · BASIC SCORE",  label: "Free self-reported Basic score — auto-posts to the map", render: (nav, data) => <BasicScoreScreen {...nav} session={data.session} /> },
   confidence:    { flow: "business", screen: "07b · CONFIDENCE",   label: "Why the CEIS score is trusted — DAF/ICS/weighting + business CTA", render: (nav) => <ConfidenceScreen {...nav} /> },
+  contact:       { flow: "consumer", screen: "★ CONTACT",          label: "Contact us — support by topic via email",            render: (nav) => <ContactScreen {...nav} /> },
   bizDashboard:  { flow: "business", screen: "10 · DASHBOARD",     label: "Live dashboard — score, analytics, score improvers", render: (nav, data) => <BizDashboardScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizStats:      { flow: "business", screen: "10b · STATS",        label: "Real score breakdown + your assessment record",      render: (nav, data) => <BizStatsScreen {...nav} session={data.session} isActive={data.isActive} /> },
   bizImprove:    { flow: "business", screen: "10c · IMPROVE",      label: "Points to next tier + prioritized quick wins",       render: (nav, data) => <BizImproveScreen {...nav} session={data.session} /> },

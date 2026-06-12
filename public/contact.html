@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us — DollarVote</title>
+<meta name="description" content="Talk to the DollarVote team — questions, business verification help, billing, or anything else. We answer within one business day.">
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1A3A8F; --teal:#1A8FA0; --lime:#7DC832;
+    --ink:#0B1525; --mid:#5E646E; --soft:#9AA0AB;
+    --border:#E8E8ED; --bg:#FFFFFF; --wash:#F5F7FB;
+    --grad:linear-gradient(135deg,#1A3A8F 0%,#1A8FA0 52%,#7DC832 100%);
+    --gradText:linear-gradient(120deg,#1A3A8F,#1A8FA0 55%,#7DC832);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
+  a{text-decoration:none;color:inherit}
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px}
+  .grad-text{background:var(--gradText);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  nav{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);z-index:50}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;max-width:1120px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:18px}
+  .mark{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .mark img{width:22px;height:22px;object-fit:contain}
+  .nav-links{display:flex;align-items:center;gap:24px}
+  .nav-links a{font-size:14px;font-weight:600;color:var(--mid)}
+  .nav-links a:hover{color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;border-radius:12px;cursor:pointer;transition:all .15s}
+  .btn-grad{background:var(--grad);color:#fff;padding:10px 18px;font-size:14px}
+  .btn-grad:hover{transform:translateY(-1px);box-shadow:0 10px 26px rgba(26,90,160,.28)}
+  header{padding:64px 0 36px;text-align:center}
+  .eyebrow{font-size:12.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--teal)}
+  h1{font-size:clamp(2rem,5vw,3rem);font-weight:900;letter-spacing:-1.2px;line-height:1.1;margin-top:10px}
+  .lede{font-size:17px;color:var(--mid);max-width:560px;margin:16px auto 0}
+  .cards{padding:18px 0 30px;display:grid;gap:14px}
+  .card{display:flex;align-items:center;gap:16px;background:var(--wash);border:1px solid var(--border);border-radius:16px;padding:20px 22px;transition:all .15s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(15,21,37,.08);border-color:var(--teal)}
+  .card .ic{font-size:26px}
+  .card h3{font-size:16px;font-weight:800}
+  .card p{font-size:13.5px;color:var(--mid);margin-top:2px}
+  .card .arrow{margin-left:auto;color:var(--teal);font-weight:800}
+  .direct{text-align:center;padding:8px 0 60px}
+  .direct .label{font-size:11px;font-weight:700;letter-spacing:1.6px;color:var(--soft);text-transform:uppercase}
+  .direct a{display:inline-block;margin-top:6px;font-size:20px;font-weight:800;color:var(--teal)}
+  .note{font-size:13px;color:var(--soft);margin-top:14px}
+  footer{border-top:1px solid var(--border);padding:26px 0;text-align:center;font-size:13px;color:var(--soft)}
+  footer a{color:var(--mid);font-weight:600}
+  @media(max-width:720px){.nav-links a:not(.btn){display:none}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="/"><span class="mark"><img src="/logo.png" alt="DollarVote"></span> Dollar<span class="grad-text">Vote</span></a>
+    <div class="nav-links">
+      <a href="/#dollar">The Dollar</a>
+      <a href="/#consumers">For Shoppers</a>
+      <a href="/#business">For Business</a>
+      <a href="/#confidence">Confidence</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/contact.html" style="color:var(--ink)">Contact Us</a>
+      <a href="https://app.dollar-vote.com" class="btn btn-grad">Open the App →</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Contact us</div>
+    <h1>We're real people.<br><span class="grad-text">Talk to us.</span></h1>
+    <p class="lede">Every message goes straight to the DollarVote team — no bots, no ticket maze. We typically reply within <strong>one business day</strong>.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap cards">
+    <a class="card" href="mailto:local@dollar-vote.com?subject=DollarVote%20—%20General%20question">
+      <span class="ic">💬</span>
+      <span><h3>General question</h3><p>Anything about DollarVote, the CEIS™ score, or the map.</p></span>
+      <span class="arrow">→</span>
+    </a>
+    <a class="card" href="mailto:local@dollar-vote.com?subject=DollarVote%20—%20Business%20%2F%20verification%20help">
+      <span class="ic">🏪</span>
+      <span><h3>Business &amp; verification help</h3><p>Assessments, documents, your score, or getting on the map.</p></span>
+      <span class="arrow">→</span>
+    </a>
+    <a class="card" href="mailto:local@dollar-vote.com?subject=DollarVote%20—%20Billing%20question">
+      <span class="ic">💳</span>
+      <span><h3>Billing &amp; subscriptions</h3><p>Plans, payments, refunds, or cancellations.</p></span>
+      <span class="arrow">→</span>
+    </a>
+    <a class="card" href="mailto:local@dollar-vote.com?subject=DollarVote%20—%20Problem%20report">
+      <span class="ic">🐞</span>
+      <span><h3>Report a problem</h3><p>Something broken, wrong, or confusing — tell us and we'll fix it.</p></span>
+      <span class="arrow">→</span>
+    </a>
+  </div>
+  <div class="direct">
+    <div class="label">Or email us directly</div>
+    <a href="mailto:local@dollar-vote.com">local@dollar-vote.com</a>
+    <div class="note">DollarVote PBC · a Delaware Public Benefit Corporation</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="/">← Back to dollar-vote.com</a> · © 2026 DollarVote PBC · Every dollar is a vote.
+  </div>
+</footer>
+
+</body>
+</html>
