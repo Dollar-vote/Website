@@ -172,6 +172,9 @@
 <header class="hero">
   <div class="wrap">
     <div class="pill"><span class="dot"></span> A Delaware Public Benefit Corporation</div>
+    <div id="foundingRibbon" style="display:none;margin:14px auto 4px;max-width:640px;background:linear-gradient(135deg,rgba(26,143,160,.08),rgba(125,200,50,.08));border:1px solid rgba(26,143,160,.25);border-radius:12px;padding:10px 16px;font-size:13.5px;color:var(--ink)">
+      🔒 <strong>Founding rate:</strong> shopper membership <strong>$19.99/yr locked for life</strong> — join by <strong>August 30, 2026</strong> and your price never goes up. <a href="https://app.dollar-vote.com/?screen=shopperJoin" style="color:var(--teal);font-weight:700">Lock it in →</a>
+    </div>
     <h1>Every dollar is a vote.<br>Make sure yours <span class="grad-text">counts.</span></h1>
     <p class="lede"><em>Every person's truth lies within their dollar.</em> DollarVote shows you exactly where your money goes after you spend it — and points you to verified local businesses that keep it in your community instead of draining it to distant headquarters. <strong>Same budget — spent on purpose.</strong></p>
     <div class="cta-row">
@@ -383,8 +386,11 @@
         <div class="amt grad-text">$4.99</div>
         <div class="per">per month</div>
         <div class="sub">Full access to the verified map, dollar-impact tracking, and your personal local-impact dashboard.</div>
+        <div class="founding-callout" style="display:none;margin:14px 0;background:linear-gradient(135deg,rgba(26,143,160,.07),rgba(125,200,50,.07));border:1px solid rgba(26,143,160,.25);border-radius:12px;padding:12px 14px;text-align:left;font-size:13px;line-height:1.55">
+          🔒 <strong>Early-adopter founding rate:</strong> go annual by <strong>August 30, 2026</strong> and pay <strong>$19.99/year — locked for life.</strong> Your price will never go up while your membership stays active. The companion to our $299 business Lifetime offer.
+        </div>
         <a href="https://app.dollar-vote.com/?screen=shopperJoin" class="btn btn-grad btn-lg" style="width:100%;justify-content:center">Become a member</a>
-        <div class="micro" style="margin-top:12px;color:var(--soft);font-size:12px">Cancel anytime · Browsing the map stays free</div>
+        <div class="micro" style="margin-top:12px;color:var(--soft);font-size:12px">Cancel anytime · Browsing the map stays free · Or $19.99/yr billed annually</div>
       </div>
 
       <ul class="worth">
@@ -435,5 +441,13 @@
 </script>
 <script defer src="/_vercel/insights/script.js"></script>
 
+<script>
+  // Founding-rate promo auto-expires after Aug 30, 2026 — no manual cleanup needed.
+  if (Date.now() < new Date('2026-08-31T00:00:00').getTime()) {
+    var fr = document.getElementById('foundingRibbon');
+    if (fr) fr.style.display = 'block';
+    document.querySelectorAll('.founding-callout').forEach(function (el) { el.style.display = 'block'; });
+  }
+</script>
 </body>
 </html>

@@ -43,6 +43,11 @@ const F = {
 
 const GRAD = "linear-gradient(135deg, #1A3A8F 0%, #1A8FA0 52%, #7DC832 100%)";
 
+// Early-adopter founding rate: $19.99/yr locked for life, offered through Aug 30, 2026.
+// All promo surfaces check FOUNDING_RATE_ACTIVE so the offer expires by itself, honestly.
+const FOUNDING_DEADLINE_LABEL = "August 30, 2026";
+const FOUNDING_RATE_ACTIVE = Date.now() < new Date("2026-08-31T00:00:00").getTime();
+
 // ─────────────────────────────────────────────
 // GLASSMORPHISM HELPERS
 // Frosted, translucent surfaces. Spread into a style object: { ...glass() }
@@ -479,8 +484,13 @@ function ShopperWelcomeScreen({ go = () => {}, back = () => {} }) {
 
       {/* Sticky CTAs */}
       <div style={{ padding: "12px 22px", borderTop: `1px solid ${C.border}`, background: C.white, flexShrink: 0 }}>
+        {FOUNDING_RATE_ACTIVE && (
+          <div style={{ textAlign: "center", fontFamily: F.mono, fontSize: 9, fontWeight: 700, color: C.teal, letterSpacing: "0.06em", marginBottom: 8 }}>
+            🔒 FOUNDING RATE · $19.99/YR LOCKED FOR LIFE · ENDS {FOUNDING_DEADLINE_LABEL.toUpperCase()}
+          </div>
+        )}
         <button onClick={() => go("shopperJoin")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 700, padding: "15px", border: "none", borderRadius: 13, cursor: "pointer", marginBottom: 8 }}>
-          Join the movement · $4.99/mo →
+          {FOUNDING_RATE_ACTIVE ? "Join the movement · from $19.99/yr →" : "Join the movement · $4.99/mo →"}
         </button>
         <button onClick={() => go("consumerHome")} style={{ width: "100%", background: C.white, color: C.mid, fontFamily: F.body, fontSize: 12.5, fontWeight: 600, padding: "11px", border: `1px solid ${C.border}`, borderRadius: 11, cursor: "pointer" }}>
           Explore the map free first
@@ -595,6 +605,15 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
         </div>
         <div style={{ fontFamily: F.body, fontSize: 8.5, opacity: 0.55, marginTop: 6 }}>Modeled estimate · local economic multiplier research</div>
       </div>
+
+      {/* Founding-rate ribbon (auto-expires) */}
+      {FOUNDING_RATE_ACTIVE && (
+        <div onClick={() => go("shopperJoin")} style={{ margin: "0 18px 12px", padding: "8px 12px", borderRadius: 10, background: C.ltTeal, border: `1px solid ${C.teal}30`, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+          <span style={{ fontSize: 13 }}>🔒</span>
+          <span style={{ flex: 1, fontFamily: F.body, fontSize: 10.5, color: C.ink, lineHeight: 1.35 }}><strong>Founding rate:</strong> $19.99/yr locked for life · ends {FOUNDING_DEADLINE_LABEL}</span>
+          <span style={{ fontFamily: F.body, fontSize: 11, color: C.teal, fontWeight: 700 }}>→</span>
+        </div>
+      )}
 
       {/* Category chips */}
       <div style={{ padding: "0 18px 12px", display: "flex", gap: 6, overflowX: "auto" }}>
@@ -1054,8 +1073,13 @@ function ImpactScreen({ go = () => {}, session = null, isActive = false }) {
             ))}
           </div>
           <button onClick={() => go("shopperJoin")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 700, padding: "15px", border: "none", borderRadius: 13, cursor: "pointer" }}>
-            Join for $4.99/month →
+            {FOUNDING_RATE_ACTIVE ? "Join · from $19.99/year →" : "Join for $4.99/month →"}
           </button>
+          {FOUNDING_RATE_ACTIVE && (
+            <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.teal, fontWeight: 700, marginTop: 8 }}>
+              🔒 Founding rate: $19.99/yr locked for life — ends {FOUNDING_DEADLINE_LABEL}
+            </div>
+          )}
           <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em", marginTop: 10 }}>CANCEL ANYTIME · BROWSING THE MAP STAYS FREE</div>
         </div>
         <ConsumerTabs active="impact" go={go} />
@@ -1319,7 +1343,9 @@ function ShopperJoinScreen({ go = () => {}, back = () => {}, session = null }) {
         {/* Plan chooser: monthly vs annual (annual = best value) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           {[
-            { id: "annual", title: "Annual", price: "$19.99", per: "/year", sub: "Just $1.67/mo — save 67%", badge: "BEST VALUE" },
+            { id: "annual", title: "Annual", price: "$19.99", per: "/year",
+              sub: FOUNDING_RATE_ACTIVE ? `Locked at $19.99/yr for life — ends ${FOUNDING_DEADLINE_LABEL}` : "Just $1.67/mo — save 67%",
+              badge: FOUNDING_RATE_ACTIVE ? "🔒 FOUNDING RATE" : "BEST VALUE" },
             { id: "monthly", title: "Monthly", price: "$4.99", per: "/month", sub: "Billed once per month", badge: null },
           ].map(p => {
             const on = plan === p.id;
@@ -1348,6 +1374,11 @@ function ShopperJoinScreen({ go = () => {}, back = () => {}, session = null }) {
             );
           })}
         </div>
+        {FOUNDING_RATE_ACTIVE && (
+          <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, lineHeight: 1.45, margin: "-6px 0 12px" }}>
+            🔒 Founding rate: join annual by {FOUNDING_DEADLINE_LABEL} and your price stays $19.99/yr for as long as your subscription remains active — it will never go up.
+          </div>
+        )}
 
         <input style={inp} type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
         <input style={inp} type="password" placeholder="Password (min 6 characters)" value={pw} onChange={e => setPw(e.target.value)} />
