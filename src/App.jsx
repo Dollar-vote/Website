@@ -484,13 +484,8 @@ function ShopperWelcomeScreen({ go = () => {}, back = () => {} }) {
 
       {/* Sticky CTAs */}
       <div style={{ padding: "12px 22px", borderTop: `1px solid ${C.border}`, background: C.white, flexShrink: 0 }}>
-        {FOUNDING_RATE_ACTIVE && (
-          <div style={{ textAlign: "center", fontFamily: F.mono, fontSize: 9, fontWeight: 700, color: C.teal, letterSpacing: "0.06em", marginBottom: 8 }}>
-            🔒 FOUNDING RATE · $19.99/YR LOCKED FOR LIFE · ENDS {FOUNDING_DEADLINE_LABEL.toUpperCase()}
-          </div>
-        )}
         <button onClick={() => go("shopperJoin")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 700, padding: "15px", border: "none", borderRadius: 13, cursor: "pointer", marginBottom: 8 }}>
-          {FOUNDING_RATE_ACTIVE ? "Join the movement · from $19.99/yr →" : "Join the movement · $4.99/mo →"}
+          Join the movement · $4.99/mo →
         </button>
         <button onClick={() => go("consumerHome")} style={{ width: "100%", background: C.white, color: C.mid, fontFamily: F.body, fontSize: 12.5, fontWeight: 600, padding: "11px", border: `1px solid ${C.border}`, borderRadius: 11, cursor: "pointer" }}>
           Explore the map free first
@@ -605,15 +600,6 @@ function ConsumerHomeScreen({ go = () => {}, biz = SAMPLE_BIZ, source = "sample"
         </div>
         <div style={{ fontFamily: F.body, fontSize: 8.5, opacity: 0.55, marginTop: 6 }}>Modeled estimate · local economic multiplier research</div>
       </div>
-
-      {/* Founding-rate ribbon (auto-expires) */}
-      {FOUNDING_RATE_ACTIVE && (
-        <div onClick={() => go("shopperJoin")} style={{ margin: "0 18px 12px", padding: "8px 12px", borderRadius: 10, background: C.ltTeal, border: `1px solid ${C.teal}30`, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-          <span style={{ fontSize: 13 }}>🔒</span>
-          <span style={{ flex: 1, fontFamily: F.body, fontSize: 10.5, color: C.ink, lineHeight: 1.35 }}><strong>Founding rate:</strong> $19.99/yr locked for life · ends {FOUNDING_DEADLINE_LABEL}</span>
-          <span style={{ fontFamily: F.body, fontSize: 11, color: C.teal, fontWeight: 700 }}>→</span>
-        </div>
-      )}
 
       {/* Category chips */}
       <div style={{ padding: "0 18px 12px", display: "flex", gap: 6, overflowX: "auto" }}>
@@ -1073,13 +1059,8 @@ function ImpactScreen({ go = () => {}, session = null, isActive = false }) {
             ))}
           </div>
           <button onClick={() => go("shopperJoin")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 15, fontWeight: 700, padding: "15px", border: "none", borderRadius: 13, cursor: "pointer" }}>
-            {FOUNDING_RATE_ACTIVE ? "Join · from $19.99/year →" : "Join for $4.99/month →"}
+            Join for $4.99/month →
           </button>
-          {FOUNDING_RATE_ACTIVE && (
-            <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.teal, fontWeight: 700, marginTop: 8 }}>
-              🔒 Founding rate: $19.99/yr locked for life — ends {FOUNDING_DEADLINE_LABEL}
-            </div>
-          )}
           <div style={{ fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em", marginTop: 10 }}>CANCEL ANYTIME · BROWSING THE MAP STAYS FREE</div>
         </div>
         <ConsumerTabs active="impact" go={go} />
@@ -1343,9 +1324,7 @@ function ShopperJoinScreen({ go = () => {}, back = () => {}, session = null }) {
         {/* Plan chooser: monthly vs annual (annual = best value) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           {[
-            { id: "annual", title: "Annual", price: "$19.99", per: "/year",
-              sub: FOUNDING_RATE_ACTIVE ? `Locked at $19.99/yr for life — ends ${FOUNDING_DEADLINE_LABEL}` : "Just $1.67/mo — save 67%",
-              badge: FOUNDING_RATE_ACTIVE ? "🔒 FOUNDING RATE" : "BEST VALUE" },
+            { id: "annual", title: "Annual", price: "$19.99", per: "/year", sub: "Just $1.67/mo — save 67%", badge: "BEST VALUE" },
             { id: "monthly", title: "Monthly", price: "$4.99", per: "/month", sub: "Billed once per month", badge: null },
           ].map(p => {
             const on = plan === p.id;
@@ -1374,12 +1353,6 @@ function ShopperJoinScreen({ go = () => {}, back = () => {}, session = null }) {
             );
           })}
         </div>
-        {FOUNDING_RATE_ACTIVE && (
-          <div style={{ fontFamily: F.body, fontSize: 9.5, color: C.soft, lineHeight: 1.45, margin: "-6px 0 12px" }}>
-            🔒 Founding rate: join annual by {FOUNDING_DEADLINE_LABEL} and your price stays $19.99/yr for as long as your subscription remains active — it will never go up.
-          </div>
-        )}
-
         <input style={inp} type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
         <input style={inp} type="password" placeholder="Password (min 6 characters)" value={pw} onChange={e => setPw(e.target.value)} />
 
@@ -1958,6 +1931,13 @@ function BizWelcomeScreen({ go = () => {}, back = () => {} }) {
 
       {/* Sticky CTA */}
       <div style={{ padding: "12px 18px", background: C.white, borderTop: `1px solid ${C.border}` }}>
+        {FOUNDING_RATE_ACTIVE && (
+          <div onClick={() => go("bizPricing")} style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 10, background: "linear-gradient(135deg,rgba(26,143,160,0.08),rgba(125,200,50,0.08))", border: `1px solid ${C.teal}40`, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <span style={{ fontSize: 13 }}>🔒</span>
+            <span style={{ flex: 1, fontFamily: F.body, fontSize: 10.5, color: C.ink, lineHeight: 1.35 }}><strong>Founding rate:</strong> $19.99/yr locked for life · ends {FOUNDING_DEADLINE_LABEL}</span>
+            <span style={{ fontFamily: F.body, fontSize: 11, color: C.teal, fontWeight: 700 }}>→</span>
+          </div>
+        )}
         <button onClick={() => go("bizPricing")} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "14px", border: "none", borderRadius: 12, cursor: "pointer" }}>See Pricing →</button>
         <button onClick={() => go("confidence")} style={{ width: "100%", background: "transparent", color: C.teal, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, padding: "9px", border: "none", cursor: "pointer", marginTop: 2 }}>Why the score is trusted →</button>
         <div style={{ textAlign: "center", marginTop: 2, fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.06em" }}>NO CREDIT CARD · FREE TIER FOREVER</div>
@@ -2065,6 +2045,40 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
             </div>
           </div>
         </div>
+
+        {/* 🔒 FOUNDING ANNUAL — companion to Lifetime: locked $19.99/yr for life. Auto-expires. */}
+        {FOUNDING_RATE_ACTIVE && (
+          <div style={{ position: "relative", borderRadius: 16, padding: 16, marginBottom: 16, background: C.white, border: `1.5px solid ${C.teal}`, boxShadow: "0 8px 24px rgba(26,143,160,0.14)", overflow: "hidden" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,rgba(26,143,160,0.12),rgba(125,200,50,0.12))", color: C.teal, padding: "4px 11px", borderRadius: 50, fontFamily: F.mono, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.08em" }}>
+              🔒 FOUNDING RATE · ENDS {FOUNDING_DEADLINE_LABEL.toUpperCase()}
+            </div>
+            <div style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1, marginTop: 10 }}>
+              Not ready for Lifetime? <span style={{ background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Lock in $19.99/yr.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8 }}>
+              <span style={{ fontFamily: F.serif, fontSize: 34, fontWeight: 700, color: C.ink, lineHeight: 1 }}>$19.99</span>
+              <span style={{ fontFamily: F.body, fontSize: 11, color: C.soft }}>/year · locked for life</span>
+            </div>
+            <div style={{ marginTop: 12, marginBottom: 12 }}>
+              {[
+                "Verified-tier access — get on the map and earn your score",
+                "Your rate never goes up while your subscription stays active",
+                "Founding-cohort member, in before the standard rate rises",
+              ].map(f => (
+                <div key={f} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "4px 0", fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.4 }}>
+                  <span style={{ color: C.teal, fontWeight: 800 }}>✓</span>{f}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => choose({ key: "founding", name: "Founding Annual" })} disabled={busyTier === "founding"} style={{
+              width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14.5, fontWeight: 800,
+              padding: "14px", border: "none", borderRadius: 12, cursor: busyTier === "founding" ? "wait" : "pointer", opacity: busyTier === "founding" ? 0.7 : 1,
+            }}>{busyTier === "founding" ? "Starting…" : "Lock in $19.99/yr →"}</button>
+            <div style={{ textAlign: "center", marginTop: 8, fontFamily: F.body, fontSize: 8.5, color: C.soft, lineHeight: 1.5 }}>
+              Founding rate applies for as long as your subscription remains continuously active.
+            </div>
+          </div>
+        )}
 
         <div style={{ textAlign: "center", fontFamily: F.mono, fontSize: 8.5, color: C.soft, letterSpacing: "0.1em", marginBottom: 10 }}>— OR CHOOSE A MONTHLY PLAN —</div>
 
