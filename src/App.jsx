@@ -2063,7 +2063,7 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
               {[
                 "Verified-tier access — get on the map and earn your score",
                 "Your rate never goes up while your subscription stays active",
-                "Founding-cohort member, in before the standard rate rises",
+                "Founding-cohort member — lock it in before this rate is gone for good",
               ].map(f => (
                 <div key={f} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "4px 0", fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.4 }}>
                   <span style={{ color: C.teal, fontWeight: 800 }}>✓</span>{f}
