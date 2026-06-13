@@ -1607,8 +1607,12 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     await load();
     setBusyId(null);
   }
-  // Approve = save the admin's trust inputs + flip to verified (trigger runs the CEIS engine).
-  const approve = (r) => setStatus(r.id, { review_inputs: toReview(r), status: "verified" });
+  // Approve = save the admin's trust inputs + flip to verified (trigger runs the CEIS engine),
+  // then email the owner their QR scorecard now that the listing is live (non-blocking).
+  const approve = async (r) => {
+    await setStatus(r.id, { review_inputs: toReview(r), status: "verified" });
+    try { await supabase.functions.invoke("send-scorecard", { body: { submission_id: r.id } }); } catch { /* delivery is best-effort */ }
+  };
   const reject  = (id) => { if (confirm("Reject this submission? Its pin will be removed from the map.")) setStatus(id, { status: "rejected" }); };
 
   // Open an uploaded evidence document via a short-lived signed URL (admins can read all).
@@ -2128,7 +2132,7 @@ function useMySubmission(session) {
     if (!supabase || !session) { setData({ phase: session ? "loading" : "anon", sub: null }); return; }
     supabase
       .from("ceis_submissions")
-      .select("business_name, category, ein, reg_state, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at, ceis_em, ceis_daf, ceis_ics")
+      .select("id, business_name, category, ein, reg_state, score_total, score_loc, score_sus, score_trn, tier, status, ref_code, created_at, ceis_em, ceis_daf, ceis_ics")
       .eq("user_id", session.user.id) // only THIS owner's submission (admins can read all, so filter explicitly)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -2578,6 +2582,38 @@ function PillarHighlightsEditor({ session }) {
   );
 }
 
+// The owner's QR scorecard control. Auto-delivered when their listing goes live;
+// this lets them re-send the printable PNG to their inbox any time.
+function ScorecardCard({ submissionId, live }) {
+  const [phase, setPhase] = useState("idle"); // idle | sending | sent | error
+  const [msg, setMsg] = useState(null);
+  async function send() {
+    if (!supabase) return;
+    setPhase("sending"); setMsg(null);
+    const { data, error } = await supabase.functions.invoke("send-scorecard", { body: { submission_id: submissionId } });
+    if (error || data?.error) { setPhase("error"); setMsg(data?.error || error.message || "Couldn't send."); return; }
+    setPhase("sent"); setMsg(`Sent to ${data?.sent_to || "your email"} — check your inbox.`);
+  }
+  return (
+    <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 18 }}>📲</span>
+        <div style={{ fontFamily: F.serif, fontSize: 14.5, fontWeight: 700, color: C.ink }}>Your QR scorecard</div>
+      </div>
+      <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.5, marginBottom: 12 }}>
+        Print it, post it at your register, add it to receipts and social. Customers scan it to see your verified DollarVote profile.
+        {live ? " We email it to you automatically — resend it any time below." : " It's emailed to you automatically once your listing is live on the map."}
+      </div>
+      {live && (
+        <button onClick={send} disabled={phase === "sending"} style={{ width: "100%", background: phase === "sent" ? C.white : GRAD, color: phase === "sent" ? C.green : C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px", border: phase === "sent" ? `1px solid ${C.border}` : "none", borderRadius: 11, cursor: phase === "sending" ? "wait" : "pointer", opacity: phase === "sending" ? 0.7 : 1 }}>
+          {phase === "sending" ? "Sending…" : phase === "sent" ? "✓ Sent — send again" : "Email me my QR scorecard"}
+        </button>
+      )}
+      {msg && <div style={{ fontFamily: F.body, fontSize: 11, color: phase === "error" ? C.red : C.green, marginTop: 8 }}>{msg}</div>}
+    </div>
+  );
+}
+
 function BizProfileScreen({ go = () => {}, session = null, isActive = false }) {
   const mine = useMySubmission(session);
   const sub = mine.sub;
@@ -2602,6 +2638,8 @@ function BizProfileScreen({ go = () => {}, session = null, isActive = false }) {
             </div>
           </div>
         </div>
+        <ScorecardCard submissionId={sub.id} live={sub.status === "verified" || sub.status === "basic"} />
+
         {isActive ? (
           <PillarHighlightsEditor session={session} />
         ) : (
@@ -2705,16 +2743,18 @@ function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
       const geo = await geocodeAddress(address);
       const ref = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8).toUpperCase();
       const answers = {}; BASIC_QUESTIONS.forEach((q, i) => { answers["b" + i] = ans[i]; });
-      const { error } = await supabase.from("ceis_submissions").insert({
+      const { data: inserted, error } = await supabase.from("ceis_submissions").insert({
         user_id: session.user.id,
         business_name: name.trim(), category: cat, address: address.trim(),
         lat: geo.lat, lng: geo.lng,
         answers, evidence: {},
         score_loc: 0, score_sus: 0, score_trn: 0, score_total: score,
         tier: "Basic", status: "basic", ref_code: ref,
-      });
+      }).select("id").maybeSingle();
       if (error) throw error;
       setDone({ score, located: geo.lat != null });
+      // Basic listings are live immediately — email the QR scorecard now (non-blocking).
+      if (inserted?.id) supabase.functions.invoke("send-scorecard", { body: { submission_id: inserted.id } }).catch(() => {});
     } catch (e) {
       setMsg({ type: "err", text: e.message || "Something went wrong." });
     } finally { setBusy(false); }
@@ -3002,6 +3042,22 @@ function initialStack() {
   return ["welcome"];
 }
 
+// Deep link: "?biz=<id>" opens that business's public profile — the target a
+// QR scorecard points to. Waits for the live directory to load, then routes.
+function useBizDeepLink(biz, source, setSelectedBiz, setStack) {
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (done) return;
+    let id = null;
+    try { id = new URLSearchParams(window.location.search).get("biz"); } catch { /* ignore */ }
+    if (!id) { setDone(true); return; }
+    if (source !== "database" || !biz.length) return; // wait for real data before matching
+    const match = biz.find((b) => String(b.id) === String(id));
+    if (match) { setSelectedBiz(match); setStack(["welcome", "profile"]); }
+    setDone(true);
+  }, [biz, source, done, setSelectedBiz, setStack]);
+}
+
 function Prototype() {
   const [stack, setStack] = useState(initialStack);
   const [selectedBiz, setSelectedBiz] = useState(null);
@@ -3015,6 +3071,7 @@ function Prototype() {
     go: (key, b) => { if (b !== undefined) setSelectedBiz(b); setStack((s) => [...s, key]); },
     back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
   };
+  useBizDeepLink(biz, source, setSelectedBiz, setStack);
   const restart = () => setStack(["welcome"]);
 
   const meta = SCREENS[current];
@@ -3166,6 +3223,7 @@ function AppMode() {
     go: (key, b) => { if (b !== undefined) setSelectedBiz(b); setStack((s) => [...s, key]); },
     back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
   };
+  useBizDeepLink(biz, source, setSelectedBiz, setStack);
   const meta = SCREENS[current];
 
   return (
