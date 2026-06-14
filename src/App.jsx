@@ -1602,7 +1602,8 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", session.user.id).maybeSingle();
     // Shopper-submitted business nominations (admin-read-only via RLS).
     const { data: noms } = await supabase.from("nominations").select("*").order("created_at", { ascending: false });
-    setState({ phase: "ready", rows: data || [], noms: noms || [], isAdmin: !!adminRow });
+    const { data: reds } = await supabase.from("code_redemptions").select("*").order("redeemed_at", { ascending: false });
+    setState({ phase: "ready", rows: data || [], noms: noms || [], reds: reds || [], isAdmin: !!adminRow });
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [session]);
@@ -1859,6 +1860,22 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
           {newNoms.map(nomCard)}
         </>
       )}
+      {(state.reds || []).length > 0 && (
+        <>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.1em", margin: "12px 0 8px" }}>
+            🎟 FOUNDING CODE REDEMPTIONS ({(state.reds || []).length}) · free verified access granted
+          </div>
+          {(state.reds || []).map(r => (
+            <div key={r.id} style={{ ...glass(0.6), borderRadius: 12, padding: "10px 12px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
+                <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 700, color: C.ink }}>{r.business_name || "(name pending assessment)"}</div>
+                <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft, marginTop: 2 }}>Code {r.code} · {new Date(r.redeemed_at).toLocaleDateString()}</div>
+              </div>
+              <Tag color={C.teal}>FOUNDER</Tag>
+            </div>
+          ))}
+        </>
+      )}
       {section("VERIFIED", done, "now public")}
       {section("SELF-REPORTED · BASIC", basicList, "auto-posted, no review")}
       {section("REJECTED", rejected, "not shown on map")}
@@ -1960,6 +1977,26 @@ function BizWelcomeScreen({ go = () => {}, back = () => {} }) {
 function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
   const [busyTier, setBusyTier] = useState(null);
   const [payMsg, setPayMsg] = useState(null);
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeVal, setCodeVal] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeMsg, setCodeMsg] = useState(null);
+
+  // Redeem an access code (e.g. FOUNDER) → free verified access, then into the assessment.
+  async function redeemCode() {
+    if (!session) { go("auth"); return; }
+    if (!codeVal.trim()) { setCodeMsg({ type: "err", text: "Enter your code." }); return; }
+    if (!supabase) { setCodeMsg({ type: "err", text: "No connection." }); return; }
+    setCodeBusy(true); setCodeMsg(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-code", { body: { code: codeVal } });
+      if (error || data?.error) { setCodeMsg({ type: "err", text: data?.error || "Couldn't redeem that code." }); return; }
+      setCodeMsg({ type: "ok", text: "Code accepted — free verified access unlocked. Opening your assessment…" });
+      setTimeout(() => { openAssessment(); go("bizDashboard"); }, 1200);
+    } catch (e) {
+      setCodeMsg({ type: "err", text: e.message || "Couldn't redeem that code." });
+    } finally { setCodeBusy(false); }
+  }
 
   const tiers = [
     { key: "free",    name: "Free", price: "$0", per: "forever", color: C.mid, popular: false, features: ["Basic self-reported score", "Posted on the map instantly", "No documents or review", "Upgrade to verified anytime"] },
@@ -2125,6 +2162,31 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
             }}>{busyTier === t.key ? "Starting…" : (t.key === "free" ? "Start free" : (t.popular ? "Get Growth →" : `Choose ${t.name}`))}</button>
           </div>
         ))}
+
+        {/* Founding access code — unadvertised; given out directly during recruitment. */}
+        <div style={{ marginTop: 14, textAlign: "center" }}>
+          {!codeOpen ? (
+            <span onClick={() => setCodeOpen(true)} style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.teal, cursor: "pointer" }}>
+              Have a founding code? →
+            </span>
+          ) : (
+            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, textAlign: "left" }}>
+              <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft, letterSpacing: "0.08em", marginBottom: 8 }}>FOUNDING ACCESS CODE</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={codeVal}
+                  onChange={e => setCodeVal(e.target.value.toUpperCase())}
+                  placeholder="Enter code"
+                  style={{ flex: 1, fontFamily: F.mono, fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", color: C.ink, background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "11px 12px", outline: "none", textTransform: "uppercase", minWidth: 0 }}
+                />
+                <button onClick={redeemCode} disabled={codeBusy} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "0 18px", border: "none", borderRadius: 10, cursor: codeBusy ? "wait" : "pointer", opacity: codeBusy ? 0.7 : 1, whiteSpace: "nowrap" }}>
+                  {codeBusy ? "…" : "Redeem"}
+                </button>
+              </div>
+              {codeMsg && <div style={{ fontFamily: F.body, fontSize: 11.5, color: codeMsg.type === "err" ? C.red : C.green, marginTop: 8, lineHeight: 1.4 }}>{codeMsg.text}</div>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
