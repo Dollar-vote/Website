@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Scorecard — DollarVote</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="/vendor-qrcode.js"></script>
+<style>
+  :root{
+    --blue:#1A3A8F; --teal:#1A8FA0; --lime:#7DC832;
+    --ink:#0B1525; --mid:#5E646E; --soft:#9AA0AB;
+    --border:#E8E8ED; --wash:#F5F7FB;
+    --grad:linear-gradient(135deg,#1A3A8F 0%,#1A8FA0 52%,#7DC832 100%);
+    --gradText:linear-gradient(120deg,#1A3A8F,#1A8FA0 55%,#7DC832);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);background:var(--wash);line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .grad-text{background:var(--gradText);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* Screen toolbar (hidden when printing) */
+  .toolbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .toolbar .t{font-size:13px;color:var(--mid)}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;border-radius:11px;cursor:pointer;border:none;font-family:inherit}
+  .btn-grad{background:var(--grad);color:#fff;padding:11px 20px;font-size:14px}
+  .btn-out{background:#fff;color:var(--ink);border:1px solid var(--border);padding:11px 18px;font-size:14px}
+
+  /* The printable poster — portrait, fills a Letter page */
+  .stage{display:flex;justify-content:center;padding:28px 16px 60px}
+  .poster{width:680px;max-width:100%;background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 24px 70px rgba(15,21,37,.16);display:flex;flex-direction:column}
+  .head{background:var(--grad);color:#fff;padding:30px 36px 26px;text-align:center;position:relative}
+  .brand{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:18px;opacity:.96}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .brand .mark img{width:22px;height:22px;object-fit:contain}
+  .eyebrow{font-size:13px;font-weight:800;letter-spacing:3px;margin-top:18px;opacity:.9}
+  .bizname{font-size:34px;font-weight:900;letter-spacing:-.5px;line-height:1.1;margin-top:6px}
+  .badge{display:inline-block;margin-top:12px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 16px;font-size:13px;font-weight:700;letter-spacing:.5px}
+
+  .body{padding:34px 36px 30px;text-align:center}
+  .scan-line{font-size:26px;font-weight:900;letter-spacing:-.3px}
+  .scan-sub{font-size:15px;color:var(--mid);margin-top:6px;max-width:440px;margin-left:auto;margin-right:auto;line-height:1.5}
+  .qr-wrap{margin:22px auto 6px;width:300px;height:300px;background:#fff;border:3px solid var(--ink);border-radius:20px;display:flex;align-items:center;justify-content:center;padding:14px}
+  .qr-wrap img,.qr-wrap canvas{width:100%;height:100%;display:block}
+  .scorerow{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:18px}
+  .scorebadge{width:74px;height:74px;border-radius:50%;border:4px solid var(--teal);display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .scorebadge .n{font-size:26px;font-weight:900;color:var(--teal);line-height:1}
+  .scorebadge .d{font-size:10px;color:var(--soft);font-weight:700}
+  .scoretxt{text-align:left}
+  .scoretxt .big{font-size:16px;font-weight:800}
+  .scoretxt .small{font-size:12px;color:var(--mid)}
+  .foot{border-top:1px dashed var(--border);margin-top:26px;padding-top:16px;font-size:12.5px;color:var(--soft)}
+  .foot strong{color:var(--mid)}
+  .url{font-family:monospace;font-size:12px;color:var(--teal);margin-top:4px;word-break:break-all}
+  .state{padding:60px 24px;text-align:center;color:var(--mid);font-size:15px}
+
+  @media print{
+    @page{size:Letter portrait;margin:0.4in}
+    body{background:#fff}
+    .toolbar{display:none}
+    .stage{padding:0}
+    .poster{box-shadow:none;border-radius:18px;width:100%}
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="t">🖨️ Tip: <strong>Print</strong> or <strong>Save as PDF</strong>, then post it in your window, at your register, or on receipts.</div>
+  <div style="display:flex;gap:8px">
+    <a href="https://app.dollar-vote.com" class="btn btn-out">← Back to app</a>
+    <button class="btn btn-grad" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="poster" id="poster">
+    <div class="state" id="loading">Loading your scorecard…</div>
+  </div>
+</div>
+
+<script>
+  const SB_URL = "https://vjsosuuognevznjcjeux.supabase.co";
+  const SB_KEY = "sb_publishable_2qVvyAsjmwcy4vvmTMDKHA_8nARrkxI";
+  const APP = "https://app.dollar-vote.com";
+
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+  async function main(){
+    const params = new URLSearchParams(location.search);
+    const id = params.get("biz");
+    const sub = params.get("sub");
+    const poster = document.getElementById("poster");
+    if(!id && !sub){
+      poster.innerHTML = '<div class="state">Add <code>?biz=YOUR_ID</code> to the link, or open this page from your DollarVote dashboard.</div>';
+      return;
+    }
+    const cols = "id,name,score,verified,basic,category,neighborhood";
+    const filter = id ? `id=eq.${encodeURIComponent(id)}` : `source_submission_id=eq.${encodeURIComponent(sub)}`;
+    let biz = null;
+    try{
+      const r = await fetch(`${SB_URL}/rest/v1/businesses?${filter}&select=${cols}`,{headers:{apikey:SB_KEY}});
+      const rows = await r.json();
+      biz = rows && rows[0];
+    }catch(e){ /* handled below */ }
+    if(!biz){
+      poster.innerHTML = '<div class="state">We couldn\'t find that business on the map yet. Your scorecard appears once your listing is live.</div>';
+      return;
+    }
+
+    const profileUrl = `${APP}/?biz=${biz.id}`;
+    const score = Math.round(Number(biz.score)||0);
+    const status = biz.basic ? "SELF-REPORTED · ON THE MAP" : (biz.verified ? "✓ DOLLARVOTE VERIFIED" : "ON THE MAP");
+    const tierTxt = biz.basic ? "Self-reported score" : (biz.verified ? "Independently verified score" : "Listed on the map");
+
+    poster.innerHTML = `
+      <div class="head">
+        <div class="brand"><span class="mark"><img src="/logo.png" alt=""></span> Dollar<span>Vote</span></div>
+        <div class="eyebrow">${esc(status)}</div>
+        <div class="bizname">${esc(biz.name)}</div>
+        <div class="badge">${esc(biz.category||"Local business")}${biz.neighborhood?" · "+esc(biz.neighborhood):""}</div>
+      </div>
+      <div class="body">
+        <div class="scan-line">Scan to see where <span class="grad-text">your dollar goes.</span></div>
+        <div class="scan-sub">This business is on the DollarVote map. Scan to see its verified local-impact profile before you spend.</div>
+        <div class="qr-wrap"><img id="qrimg" alt="Scan with your phone camera"></div>
+        <div class="scorerow">
+          <div class="scorebadge"><div class="n">${score}</div><div class="d">/100</div></div>
+          <div class="scoretxt"><div class="big">DollarVote Score</div><div class="small">${esc(tierTxt)}</div></div>
+        </div>
+        <div class="foot">
+          <strong>Every dollar is a vote.</strong> Point your phone camera at the code above.
+          <div class="url">${esc(profileUrl)}</div>
+        </div>
+      </div>`;
+
+    try{
+      const qr = qrcode(0, "M");      // auto size, medium error correction
+      qr.addData(profileUrl);
+      qr.make();
+      document.getElementById("qrimg").src = qr.createDataURL(10, 4);
+    }catch(e){
+      document.querySelector(".qr-wrap").innerHTML = '<div style="font-size:12px;color:#9AA0AB">QR could not render — open '+esc(profileUrl)+'</div>';
+    }
+  }
+  main();
+</script>
+</body>
+</html>

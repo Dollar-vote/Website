@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Become a Founding Verified Local Business — DollarVote</title>
+<meta name="description" content="Join DollarVote as a founding verified local business — a verified impact score, a spot on the map, and a free QR scorecard. Founding rate $19.99/yr locked for life through Aug 30, 2026.">
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="/vendor-qrcode.js"></script>
+<style>
+  :root{
+    --blue:#1A3A8F; --teal:#1A8FA0; --lime:#7DC832;
+    --ink:#0B1525; --mid:#5E646E; --soft:#9AA0AB;
+    --border:#E8E8ED; --wash:#F5F7FB;
+    --grad:linear-gradient(135deg,#1A3A8F 0%,#1A8FA0 52%,#7DC832 100%);
+    --gradText:linear-gradient(120deg,#1A3A8F,#1A8FA0 55%,#7DC832);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);background:var(--wash);line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .grad-text{background:var(--gradText);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  .toolbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .toolbar .t{font-size:13px;color:var(--mid)}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;border-radius:11px;cursor:pointer;border:none;font-family:inherit;text-decoration:none}
+  .btn-grad{background:var(--grad);color:#fff;padding:11px 20px;font-size:14px}
+  .btn-out{background:#fff;color:var(--ink);border:1px solid var(--border);padding:11px 18px;font-size:14px}
+
+  .stage{display:flex;justify-content:center;padding:24px 16px 60px}
+  .sheet{width:760px;max-width:100%;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 24px 70px rgba(15,21,37,.14)}
+
+  .head{background:var(--grad);color:#fff;padding:26px 40px}
+  .brand{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:17px}
+  .brand .mark{width:28px;height:28px;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .brand .mark img{width:21px;height:21px;object-fit:contain}
+  .head .pbc{float:right;font-size:11px;font-weight:700;letter-spacing:1px;opacity:.85;margin-top:6px}
+  .head h1{font-size:30px;font-weight:900;letter-spacing:-.6px;line-height:1.12;margin-top:16px}
+  .head .sub{font-size:15px;opacity:.95;margin-top:8px;max-width:600px;line-height:1.5}
+
+  .body{padding:26px 40px 30px}
+  .lead{font-size:14.5px;color:var(--mid);line-height:1.6}
+  .lead strong{color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0 4px}
+  .card{background:var(--wash);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+  .card .ic{font-size:20px}
+  .card h3{font-size:14.5px;font-weight:800;margin-top:6px}
+  .card p{font-size:12.5px;color:var(--mid);margin-top:3px;line-height:1.45}
+
+  .offer{display:flex;gap:18px;align-items:center;background:linear-gradient(135deg,rgba(26,143,160,.08),rgba(125,200,50,.08));border:1.5px solid rgba(26,143,160,.3);border-radius:16px;padding:18px 20px;margin:18px 0}
+  .offer .left{flex:1}
+  .offer .tag{font-size:11px;font-weight:800;letter-spacing:1.2px;color:var(--teal);text-transform:uppercase}
+  .offer .price{font-size:24px;font-weight:900;letter-spacing:-.4px;margin-top:4px}
+  .offer .price s{color:var(--soft);font-weight:600;font-size:15px}
+  .offer .fine{font-size:12px;color:var(--mid);margin-top:4px;line-height:1.45}
+  .offer .qr{width:118px;height:118px;flex-shrink:0;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:7px}
+  .offer .qr img{width:100%;height:100%;display:block}
+
+  .how{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .step{flex:1;min-width:150px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .step .n{font-family:monospace;font-size:11px;color:var(--teal);font-weight:700}
+  .step .x{font-size:13px;font-weight:700;margin-top:3px}
+  .step .d{font-size:11.5px;color:var(--mid);margin-top:2px;line-height:1.4}
+
+  .foot{border-top:1px dashed var(--border);margin-top:22px;padding-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--mid)}
+  .foot a{color:var(--teal);font-weight:700;text-decoration:none}
+
+  @media print{
+    @page{size:Letter portrait;margin:0.35in}
+    body{background:#fff}
+    .toolbar{display:none}
+    .stage{padding:0}
+    .sheet{box-shadow:none;border-radius:14px;width:100%}
+  }
+  @media(max-width:620px){.grid{grid-template-columns:1fr}.offer{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="t">📄 Hand this to a business owner, or <strong>Print / Save as PDF</strong> to email or leave behind.</div>
+  <div style="display:flex;gap:8px">
+    <a href="https://app.dollar-vote.com/?screen=bizWelcome" class="btn btn-out">Open signup</a>
+    <button class="btn btn-grad" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="sheet">
+    <div class="head">
+      <span class="pbc">A DELAWARE PUBLIC BENEFIT CORP</span>
+      <div class="brand"><span class="mark"><img src="/logo.png" alt=""></span> Dollar<span>Vote</span></div>
+      <h1>Be a <span style="color:#fff">founding verified</span> local business.</h1>
+      <div class="sub">Shoppers increasingly choose where to spend by who actually keeps their dollars in the community. DollarVote gives you a verified way to prove yours — and puts you on the map before your competitors.</div>
+    </div>
+
+    <div class="body">
+      <div class="lead">An independent <strong>impact score</strong> based on how much of every dollar stays local, plus a verified profile shoppers can trust. Studies estimate <strong>~$0.68 of every dollar stays local</strong> at an independent business vs. <strong>~$0.43 at a chain</strong> — DollarVote helps shoppers act on that, and helps you get credit for it. <span style="color:var(--soft)">(Figures are modeled estimates from local-economy research.)</span></div>
+
+      <div class="grid">
+        <div class="card"><div class="ic">✅</div><h3>A verified score &amp; badge</h3><p>An independent CEIS™ score on your public profile — proof, not marketing claims.</p></div>
+        <div class="card"><div class="ic">🗺️</div><h3>A spot on the map</h3><p>Shoppers filter for verified local businesses in your neighborhood. Be the one they find.</p></div>
+        <div class="card"><div class="ic">📲</div><h3>A free QR scorecard</h3><p>A ready-to-print window poster. Customers scan it to see exactly where their dollar goes.</p></div>
+        <div class="card"><div class="ic">🏆</div><h3>Founding-member status</h3><p>Own your category while the map is new. First-mover visibility compounds.</p></div>
+      </div>
+
+      <div class="offer">
+        <div class="left">
+          <div class="tag">🔒 Founding rate · ends August 30, 2026</div>
+          <div class="price">$19.99<span style="font-size:14px;color:var(--mid);font-weight:600">/year</span> — locked for life</div>
+          <div class="fine">Claim it before the window closes and your rate never goes up while your subscription stays active. Or start <strong>free</strong> with a self-reported listing today. Scan to begin →</div>
+        </div>
+        <div class="qr"><img id="qr" alt="Scan to sign up"></div>
+      </div>
+
+      <div class="how">
+        <div class="step"><div class="n">STEP 1</div><div class="x">Create your account</div><div class="d">Scan the code or visit the link below — choose “I’m a Business Owner.”</div></div>
+        <div class="step"><div class="n">STEP 2</div><div class="x">Get scored</div><div class="d">Answer a short assessment. Verified businesses submit a few documents.</div></div>
+        <div class="step"><div class="n">STEP 3</div><div class="x">Go live + get your QR</div><div class="d">Your profile pins to the map and your QR scorecard is emailed to you.</div></div>
+      </div>
+
+      <div class="foot">
+        <div>Start now: <a href="https://app.dollar-vote.com/?screen=bizWelcome">app.dollar-vote.com</a> &nbsp;·&nbsp; Questions? <a href="mailto:local@dollar-vote.com">local@dollar-vote.com</a></div>
+        <div style="color:var(--soft);font-weight:700">Every dollar is a vote.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  try{
+    var qr = qrcode(0, "M");
+    qr.addData("https://app.dollar-vote.com/?screen=bizWelcome");
+    qr.make();
+    document.getElementById("qr").src = qr.createDataURL(8, 2);
+  }catch(e){ document.querySelector(".qr").innerHTML = '<div style="font-size:10px;color:#9AA0AB;padding:6px">app.dollar-vote.com</div>'; }
+</script>
+</body>
+</html>

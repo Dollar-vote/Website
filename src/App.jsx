@@ -207,7 +207,13 @@ function useGeo() {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { requestLocation(); }, []); // eslint-disable-line
+  // On load, a "?area=<zip or city>" link (e.g. a neighborhood marketing link)
+  // centers the map there; otherwise ask for the visitor's own location.
+  useEffect(() => {
+    let area = null;
+    try { area = new URLSearchParams(window.location.search).get("area"); } catch { /* ignore */ }
+    if (area) setManual(area); else requestLocation();
+  }, []); // eslint-disable-line
 
   return { geo, requestLocation, setManual };
 }
@@ -2605,9 +2611,12 @@ function ScorecardCard({ submissionId, live }) {
         {live ? " We email it to you automatically — resend it any time below." : " It's emailed to you automatically once your listing is live on the map."}
       </div>
       {live && (
-        <button onClick={send} disabled={phase === "sending"} style={{ width: "100%", background: phase === "sent" ? C.white : GRAD, color: phase === "sent" ? C.green : C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px", border: phase === "sent" ? `1px solid ${C.border}` : "none", borderRadius: 11, cursor: phase === "sending" ? "wait" : "pointer", opacity: phase === "sending" ? 0.7 : 1 }}>
-          {phase === "sending" ? "Sending…" : phase === "sent" ? "✓ Sent — send again" : "Email me my QR scorecard"}
-        </button>
+        <>
+          <button onClick={send} disabled={phase === "sending"} style={{ width: "100%", background: phase === "sent" ? C.white : GRAD, color: phase === "sent" ? C.green : C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px", border: phase === "sent" ? `1px solid ${C.border}` : "none", borderRadius: 11, cursor: phase === "sending" ? "wait" : "pointer", opacity: phase === "sending" ? 0.7 : 1 }}>
+            {phase === "sending" ? "Sending…" : phase === "sent" ? "✓ Sent — send again" : "Email me my QR scorecard"}
+          </button>
+          <a href={`https://app.dollar-vote.com/scorecard.html?sub=${submissionId}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", textAlign: "center", marginTop: 8, fontFamily: F.body, fontSize: 12.5, fontWeight: 700, color: C.teal, textDecoration: "none" }}>🖨️ Print a window poster →</a>
+        </>
       )}
       {msg && <div style={{ fontFamily: F.body, fontSize: 11, color: phase === "error" ? C.red : C.green, marginTop: 8 }}>{msg}</div>}
     </div>
@@ -3038,6 +3047,8 @@ function initialStack() {
       // Start at welcome so a Back button still makes sense, then the deep-linked screen on top.
       return target === "welcome" ? ["welcome"] : ["welcome", target];
     }
+    // A "?area=<zip or city>" neighborhood link opens straight to the map (centered by useGeo).
+    if (params.get("area")) return ["welcome", "map"];
   } catch { /* ignore */ }
   return ["welcome"];
 }
