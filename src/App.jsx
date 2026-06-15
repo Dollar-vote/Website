@@ -30,6 +30,7 @@ const C = {
   green:   "#1A8F45",
   amber:   "#E8A820",
   basic:   "#8B5CF6", // self-reported (non-verified, free) — a distinct violet
+  starter: "#E8A820", // Starter tier (paid self-report) — yellow/gold, between basic & verified
 };
 
 // Apple-style typography: real San Francisco on macOS, Inter as the web fallback.
@@ -247,6 +248,7 @@ function rowToBiz(r) {
     hood: r.neighborhood,
     verified: r.verified,
     basic: r.basic || false,
+    starter: r.starter || false,
     userId: r.user_id || null,
     emoji: r.emoji || "🏬",
     local: Number(r.local_per_10) || 0,
@@ -713,11 +715,12 @@ function MapboxMap({ businesses, selectedId, onSelect, userLat, userLng }) {
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
     pts.forEach(b => {
-      const basic = !!b.basic;          // free self-reported → neutral grey pin
-      const pending = !basic && !b.verified; // full submission, awaiting review → faded ⏳
-      const col = basic ? C.basic : scoreColor(b.score);
+      const basic = !!b.basic;          // free self-reported → violet pin
+      const starter = !!b.starter;      // paid Starter self-report → yellow pin
+      const pending = !basic && !starter && !b.verified; // verified-track submission, awaiting review → faded ⏳
+      const col = basic ? C.basic : starter ? C.starter : scoreColor(b.score);
       const el = document.createElement("div");
-      el.title = basic ? "Basic · self-reported (free)" : pending ? "Pending Dollar Vote verification" : "Dollar Vote verified";
+      el.title = basic ? "Basic · self-reported (free)" : starter ? "Starter · self-reported (paid)" : pending ? "Pending Dollar Vote verification" : "Dollar Vote verified";
       el.style.cssText = `cursor:pointer;background:#fff;border:2px ${pending ? "dashed" : "solid"} ${col};border-radius:10px;
         padding:3px 7px;box-shadow:0 3px 8px rgba(0,0,0,${pending ? ".12" : ".22"});font-family:${F.serif};
         font-weight:700;font-size:13px;color:${col};line-height:1;opacity:${pending ? "0.5" : "1"};
@@ -860,6 +863,8 @@ function MapScreen({ go = () => {}, back = () => {}, biz = SAMPLE_BIZ, geo = { p
                 <div style={{ fontFamily: F.body, fontSize: 10.5, color: C.soft }}>{sel.hood || sel.cat}{sel.distance ? ` · ${sel.distance}` : ""}</div>
                 {sel.basic
                   ? <Tag color={C.basic}>ⓘ {sel.score}/100 · BASIC (SELF-REPORTED)</Tag>
+                  : sel.starter
+                  ? <Tag color={C.starter}>★ {sel.score}/100 · STARTER (SELF-REPORTED)</Tag>
                   : sel.verified
                   ? <Tag color={scoreColor(sel.score)}>✓ {sel.score}/100</Tag>
                   : <Tag color={C.amber}>⏳ {sel.score}/100 · PENDING</Tag>}
@@ -920,6 +925,8 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
           <div style={{ flex: 1 }}>
             {b.basic
               ? <Tag color={C.white} bg="rgba(139,92,246,0.85)" outline>ⓘ BASIC · SELF-REPORTED</Tag>
+              : b.starter
+              ? <Tag color={C.white} bg="rgba(232,168,32,0.9)" outline>★ STARTER · SELF-REPORTED</Tag>
               : b.verified
               ? <Tag color={C.lime} bg="rgba(125,200,50,0.15)" outline>✓ DOLLARVOTE VERIFIED</Tag>
               : <Tag color={C.amber} bg="rgba(232,168,32,0.18)" outline>⏳ PENDING VERIFICATION</Tag>}
@@ -933,14 +940,14 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 700 }}>{tier}</div>
             <div style={{ fontFamily: F.mono, fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: "0.08em" }}>
-              {b.basic ? "SELF-REPORTED · UNVERIFIED" : b.verified ? `VERIFIED · $${(b.local || 0).toFixed(2)}/$10 STAYS LOCAL` : "PENDING VERIFICATION"}
+              {b.basic ? "SELF-REPORTED · UNVERIFIED" : b.starter ? "STARTER · SELF-REPORTED" : b.verified ? `VERIFIED · $${(b.local || 0).toFixed(2)}/$10 STAYS LOCAL` : "PENDING VERIFICATION"}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Where your dollar goes — real number derived from the verified Locality score */}
-      {!b.basic && Number(b.local) > 0 && (
+      {/* Where your dollar goes — only for VERIFIED listings (the figure is from a reviewed Locality score) */}
+      {b.verified && Number(b.local) > 0 && (
         <div style={{ background: C.white, margin: "-14px 16px 12px", borderRadius: 16, padding: 18, boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
           <div style={{ fontFamily: F.mono, fontSize: 9, color: C.lime, fontWeight: 700, letterSpacing: "0.12em", marginBottom: 10 }}>WHERE YOUR $10 GOES HERE</div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
@@ -958,10 +965,11 @@ function BusinessProfileScreen({ go = () => {}, back = () => {}, biz = null }) {
       )}
 
       {/* Pillars detail — real scores + the owner's own story (subscriber perk).
-          Basic listings don't measure pillars, so show an honest note instead of zeros. */}
-      {b.basic ? (
+          Self-reported (basic/starter) listings aren't independently reviewed, so show
+          an honest note instead of pillar scores. */}
+      {(b.basic || b.starter) ? (
         <div style={{ margin: "0 16px 12px", background: C.white, borderRadius: 16, padding: 16 }}>
-          <div style={{ fontFamily: F.mono, fontSize: 9, color: C.basic, letterSpacing: "0.12em", marginBottom: 8 }}>ⓘ BASIC · SELF-REPORTED LISTING</div>
+          <div style={{ fontFamily: F.mono, fontSize: 9, color: b.starter ? C.starter : C.basic, letterSpacing: "0.12em", marginBottom: 8 }}>{b.starter ? "★ STARTER · SELF-REPORTED LISTING" : "ⓘ BASIC · SELF-REPORTED LISTING"}</div>
           <div style={{ fontFamily: F.body, fontSize: 11.5, color: C.mid, lineHeight: 1.55 }}>
             This score comes from the owner's own answers and hasn't been independently verified. Pillar-by-pillar scores (Locality · Sustainability · Transparency) appear when a business completes the verified CEIS™ assessment.
           </div>
@@ -1189,6 +1197,23 @@ function CategoriesScreen({ go = () => {} }) {
 // Opens the standalone CEIS™ assessment (served from /public) in a new tab.
 function openAssessment() {
   window.open("/ceis-assessment.html", "_blank", "noopener");
+}
+
+// Route a business owner to the right assessment for their tier:
+// Starter = a paid self-report (→ yellow listing, no review); every other tier
+// (Growth/Premium/Lifetime/FOUNDER comp) = the verified evidence assessment (→ green).
+async function startAssessmentSmart(go) {
+  let tier = null;
+  try {
+    if (supabase) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.from("subscriptions").select("tier,status").eq("user_id", user.id).maybeSingle();
+        if (data?.status === "active") tier = data.tier;
+      }
+    }
+  } catch { /* fall through to verified assessment */ }
+  if (tier === "starter") go("basicScore"); else openAssessment();
 }
 
 // ─────────────────────────────────────────────
@@ -1659,9 +1684,10 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
     <button onClick={() => go("auth")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px 20px", border: "none", borderRadius: 12, cursor: "pointer" }}>Log in →</button>);
   if (state.phase === "error" || !state.isAdmin) return note("🚫", "Not authorized", "This account isn't an admin. Ask an existing admin to add you.");
 
-  const pending  = state.rows.filter(r => r.status !== "verified" && r.status !== "rejected" && r.status !== "basic");
+  const pending  = state.rows.filter(r => r.status !== "verified" && r.status !== "rejected" && r.status !== "basic" && r.status !== "starter");
   const done     = state.rows.filter(r => r.status === "verified");
   const basicList= state.rows.filter(r => r.status === "basic");
+  const starterList = state.rows.filter(r => r.status === "starter");
   const rejected = state.rows.filter(r => r.status === "rejected");
 
   const row = (label, value) => (
@@ -1877,7 +1903,8 @@ function AdminScreen({ go = () => {}, back = () => {}, session = null }) {
         </>
       )}
       {section("VERIFIED", done, "now public")}
-      {section("SELF-REPORTED · BASIC", basicList, "auto-posted, no review")}
+      {section("SELF-REPORTED · STARTER (yellow)", starterList, "paid self-report, auto-posted")}
+      {section("SELF-REPORTED · BASIC (free)", basicList, "auto-posted, no review")}
       {section("REJECTED", rejected, "not shown on map")}
       {doneNoms.length > 0 && (
         <>
@@ -2020,7 +2047,7 @@ function BizPricingScreen({ go = () => {}, back = () => {}, session = null }) {
       if (data?.configured === false) {
         // Payments built but Stripe keys not added yet — let them proceed for now.
         setPayMsg("💳 Payments aren't switched on yet. Continuing without charge for now.");
-        setTimeout(() => { openAssessment(); go("bizDashboard"); }, 1400);
+        setTimeout(() => { if (t.key === "starter") { go("basicScore"); } else { openAssessment(); go("bizDashboard"); } }, 1400);
         return;
       }
       setPayMsg(data?.error || "Couldn't start checkout.");
@@ -2229,8 +2256,11 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
   const tier    = sub ? sub.tier : "Community Champion";
   const isVerified = sub ? sub.status === "verified" : true;
   const isBasic = sub ? sub.status === "basic" : false;
+  const isStarter = sub ? sub.status === "starter" : false;
+  const selfReported = isBasic || isStarter; // neither is independently verified
   const statusLabel = !sub ? "✓ COMMUNITY CHAMPION · VERIFIED"
     : isBasic ? "ⓘ BASIC · SELF-REPORTED"
+    : isStarter ? "★ STARTER · SELF-REPORTED"
     : isVerified ? `✓ ${(tier || "").toUpperCase()} · VERIFIED`
     : `⏳ ${(tier || "").toUpperCase()} · UNDER REVIEW`;
 
@@ -2271,27 +2301,27 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
             <div style={{ fontFamily: F.body, fontSize: 12, color: C.mid, lineHeight: 1.5, marginBottom: 14 }}>
               Complete your CEIS™ assessment to get your score and appear in the directory.
             </div>
-            <button onClick={() => openAssessment()} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px 20px", border: "none", borderRadius: 12, cursor: "pointer" }}>Start assessment →</button>
+            <button onClick={() => startAssessmentSmart(go)} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px 20px", border: "none", borderRadius: 12, cursor: "pointer" }}>Start assessment →</button>
           </div>
         )}
 
         {/* Score hero — real data only; hidden for a logged-in owner with no submission yet */}
         {(!session || sub) && (
         <div style={{ background: GRAD, color: C.white, borderRadius: 16, padding: 18, marginBottom: 12, position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>{isBasic ? "ⓘ" : isVerified ? "🏆" : "⏳"}</div>
-          <Tag color={isBasic ? C.white : C.lime} bg={isBasic ? "rgba(139,92,246,0.85)" : "rgba(125,200,50,0.2)"} outline>{statusLabel}</Tag>
+          <div style={{ position: "absolute", right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>{isBasic ? "ⓘ" : isStarter ? "★" : isVerified ? "🏆" : "⏳"}</div>
+          <Tag color={selfReported ? C.white : C.lime} bg={isBasic ? "rgba(139,92,246,0.85)" : isStarter ? "rgba(232,168,32,0.9)" : "rgba(125,200,50,0.2)"} outline>{statusLabel}</Tag>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
             <ScoreBadge score={total} size={62} />
             <div>
               <div style={{ fontFamily: F.serif, fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{total}</div>
               <div style={{ fontFamily: F.body, fontSize: 10, opacity: 0.85, marginTop: 2 }}>
                 {sub
-                  ? (isBasic ? "Self-reported — live on the map" : isVerified ? "Verified & live in the directory" : "Projected — pending verification")
+                  ? (selfReported ? "Self-reported — live on the map" : isVerified ? "Verified & live in the directory" : "Projected — pending verification")
                   : "↑ 4 pts since last quarter"}
               </div>
             </div>
           </div>
-          {sub && !isBasic && (
+          {sub && !selfReported && (
             <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
               {[["Locality", sub.score_loc, 40], ["Sustainability", sub.score_sus, 30], ["Transparency", sub.score_trn, 30]].map(([lbl, v, max]) => (
                 <div key={lbl} style={{ flex: 1, background: "rgba(255,255,255,0.14)", borderRadius: 8, padding: "7px 8px" }}>
@@ -2301,7 +2331,7 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
               ))}
             </div>
           )}
-          {sub && isBasic && (
+          {sub && selfReported && (
             <div onClick={() => go("bizPricing")} style={{ marginTop: 12, background: "rgba(255,255,255,0.14)", borderRadius: 10, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ flex: 1, fontFamily: F.body, fontSize: 11, lineHeight: 1.4 }}>This is a self-reported score. <strong>Upgrade to a verified CEIS™ score</strong> for a premium badge.</div>
               <span style={{ color: C.lime, fontWeight: 700 }}>→</span>
@@ -2333,7 +2363,7 @@ function BizDashboardScreen({ go = () => {}, session = null, isActive = false })
         )}
 
         {/* Free-tier owner · upsell to full precision */}
-        {sub && !isBasic && !subscriber && (
+        {sub && !selfReported && !subscriber && (
           <div onClick={() => go("bizPricing")} style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 14, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ fontSize: 20 }}>🔓</div>
             <div style={{ flex: 1 }}>
@@ -2447,7 +2477,7 @@ function bizStateScreen({ mine, session, active, go, title }) {
   const empty = session && mine.phase === "ready"; // logged in, fetch done, but no submission
   let icon = "⏳", head = "Loading…", body = "Fetching your assessment record.", cta = null;
   if (anon) { icon = "🔐"; head = "Log in to see this"; body = "Sign in as a business owner to track your score, stats and ways to improve."; cta = ["Log in →", () => go("auth")]; }
-  else if (empty) { icon = "📋"; head = "No assessment yet"; body = "Complete your free CEIS™ assessment to unlock your stats and score."; cta = ["Start assessment →", () => openAssessment()]; }
+  else if (empty) { icon = "📋"; head = "No assessment yet"; body = "Complete your free CEIS™ assessment to unlock your stats and score."; cta = ["Start assessment →", () => startAssessmentSmart(go)]; }
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
       <BizTopBar title={title} sub={null} session={session} />
@@ -2578,7 +2608,7 @@ function BizImproveScreen({ go = () => {}, session = null }) {
         <div style={{ background: C.ink, color: C.white, borderRadius: 14, padding: 16 }}>
           <div style={{ fontFamily: F.serif, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Made an improvement?</div>
           <div style={{ fontFamily: F.body, fontSize: 11, color: "rgba(255,255,255,0.65)", marginBottom: 12 }}>Update your assessment with new evidence to raise your verified score.</div>
-          <button onClick={() => openAssessment()} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "11px 18px", border: "none", borderRadius: 11, cursor: "pointer" }}>Update my assessment →</button>
+          <button onClick={() => startAssessmentSmart(go)} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "11px 18px", border: "none", borderRadius: 11, cursor: "pointer" }}>Update my assessment →</button>
         </div>
       </div>
       <BizTabs active="bizImprove" go={go} />
@@ -2705,11 +2735,11 @@ function BizProfileScreen({ go = () => {}, session = null, isActive = false }) {
             <div>
               <div style={{ fontFamily: F.serif, fontSize: 17, fontWeight: 700 }}>{sub.business_name}</div>
               <div style={{ fontFamily: F.body, fontSize: 11, opacity: 0.9 }}>{sub.category || "Local business"} · {sub.tier}</div>
-              <div style={{ fontFamily: F.mono, fontSize: 8.5, opacity: 0.85, marginTop: 3 }}>{verified ? "✓ VERIFIED" : "⏳ UNDER REVIEW"}</div>
+              <div style={{ fontFamily: F.mono, fontSize: 8.5, opacity: 0.85, marginTop: 3 }}>{verified ? "✓ VERIFIED" : sub.status === "starter" ? "★ STARTER · SELF-REPORTED" : sub.status === "basic" ? "ⓘ BASIC · SELF-REPORTED" : "⏳ UNDER REVIEW"}</div>
             </div>
           </div>
         </div>
-        <ScorecardCard submissionId={sub.id} live={sub.status === "verified" || sub.status === "basic"} />
+        <ScorecardCard submissionId={sub.id} live={sub.status === "verified" || sub.status === "basic" || sub.status === "starter"} />
 
         {isActive ? (
           <PillarHighlightsEditor session={session} />
@@ -2749,7 +2779,7 @@ function BizProfileScreen({ go = () => {}, session = null, isActive = false }) {
             <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 700, color: C.teal }}>Contact us →</span>
           </div>
         </div>
-        <button onClick={() => openAssessment()} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 10 }}>Update my assessment →</button>
+        <button onClick={() => startAssessmentSmart(go)} style={{ width: "100%", background: GRAD, color: C.white, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 10 }}>Update my assessment →</button>
         <button onClick={signOut} style={{ width: "100%", background: C.white, color: C.red, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "13px", border: `1px solid ${C.border}`, borderRadius: 12, cursor: "pointer" }}>Sign out</button>
       </div>
       <BizTabs active="bizProfile" go={go} />
@@ -2814,16 +2844,23 @@ function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
       const geo = await geocodeAddress(address);
       const ref = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).slice(0, 8).toUpperCase();
       const answers = {}; BASIC_QUESTIONS.forEach((q, i) => { answers["b" + i] = ans[i]; });
+      // A paying Starter subscriber's self-report is tagged "starter" (yellow badge);
+      // a free self-report stays "basic" (purple). Same questions, different badge.
+      let selfStatus = "basic";
+      try {
+        const { data: subRow } = await supabase.from("subscriptions").select("tier,status").eq("user_id", session.user.id).maybeSingle();
+        if (subRow?.status === "active" && subRow.tier === "starter") selfStatus = "starter";
+      } catch { /* default basic */ }
       const { data: inserted, error } = await supabase.from("ceis_submissions").insert({
         user_id: session.user.id,
         business_name: name.trim(), category: cat, address: address.trim(),
         lat: geo.lat, lng: geo.lng,
         answers, evidence: {},
         score_loc: 0, score_sus: 0, score_trn: 0, score_total: score,
-        tier: "Basic", status: "basic", ref_code: ref,
+        tier: selfStatus === "starter" ? "Starter" : "Basic", status: selfStatus, ref_code: ref,
       }).select("id").maybeSingle();
       if (error) throw error;
-      setDone({ score, located: geo.lat != null });
+      setDone({ score, located: geo.lat != null, starter: selfStatus === "starter" });
       // Basic listings are live immediately — email the QR scorecard now (non-blocking).
       if (inserted?.id) supabase.functions.invoke("send-scorecard", { body: { submission_id: inserted.id } }).catch(() => {});
     } catch (e) {
@@ -2834,13 +2871,13 @@ function BasicScoreScreen({ go = () => {}, back = () => {}, session = null }) {
   if (done) {
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, overflowY: "auto", padding: 24, textAlign: "center", justifyContent: "center" }}>
-        <div style={{ width: 96, height: 96, borderRadius: "50%", border: `3px solid ${C.basic}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", background: C.white }}>
-          <div style={{ fontFamily: F.serif, fontSize: 34, fontWeight: 700, color: C.basic, lineHeight: 1 }}>{done.score}</div>
+        <div style={{ width: 96, height: 96, borderRadius: "50%", border: `3px solid ${done.starter ? C.starter : C.basic}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", background: C.white }}>
+          <div style={{ fontFamily: F.serif, fontSize: 34, fontWeight: 700, color: done.starter ? C.starter : C.basic, lineHeight: 1 }}>{done.score}</div>
           <div style={{ fontFamily: F.mono, fontSize: 9, color: C.soft }}>/100</div>
         </div>
         <div style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, color: C.ink, marginBottom: 6 }}>You're on the map!</div>
         <div style={{ fontFamily: F.body, fontSize: 12.5, color: C.mid, lineHeight: 1.55, maxWidth: 320, margin: "0 auto 20px" }}>
-          Your <strong>Basic · self-reported</strong> score is live. {done.located ? "Shoppers can find you now." : "Add a clearer address later to pin your exact spot."} Upgrade anytime to a <strong>verified CEIS™</strong> score for a premium, trust-building badge.
+          Your <strong>{done.starter ? "Starter · self-reported" : "Basic · self-reported"}</strong> score is live. {done.located ? "Shoppers can find you now." : "Add a clearer address later to pin your exact spot."} Upgrade anytime to a <strong>verified CEIS™</strong> score for a premium, trust-building badge.
         </div>
         <button onClick={() => go("map")} style={{ background: GRAD, color: C.white, fontFamily: F.body, fontSize: 14, fontWeight: 700, padding: "13px", border: "none", borderRadius: 12, cursor: "pointer", marginBottom: 10 }}>See me on the map →</button>
         <button onClick={() => go("bizPricing")} style={{ background: C.white, color: C.ink, fontFamily: F.body, fontSize: 13, fontWeight: 700, padding: "12px", border: `1px solid ${C.border}`, borderRadius: 12, cursor: "pointer" }}>Upgrade to a verified score</button>
